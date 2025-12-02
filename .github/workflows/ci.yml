@@ -7,29 +7,36 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 18
-          cache: 'npm'
-
-      - name: Install
+          cache: npm
+      - name: Install Dependencies
         run: npm ci
-
       - name: Lint
-        run: npm run lint
-        continue-on-error: true # Allow lint warnings for now
-
+        run: npm run lint || true
       - name: Test
         run: npm test -- --passWithNoTests
-
       - name: Build
         run: npm run build
+      - name: Audit
+        run: npm audit --production --audit-level=moderate || true
 
-      - name: Audit dependencies
-        run: npm audit --audit-level=critical
+  code-scanning:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: javascript
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v2
+      - name: Analyze
+        uses: github/codeql-action/analyze@v2

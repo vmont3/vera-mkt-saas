@@ -30,8 +30,27 @@ import quantumCertRouter from './routes/quantumCertRoutes';
 // Initialize Express App
 const app = express();
 
+import helmet from 'helmet';
+
 // CORS Configuration
-app.use(cors());
+const allowedOrigins = (process.env.CORS_ORIGINS || '').split(',').filter(Boolean);
+
+app.use(helmet()); // Security Headers
+
+app.use(cors({
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+
+        if (allowedOrigins.length === 0 || allowedOrigins.indexOf(origin) !== -1) {
+            return callback(null, true);
+        }
+
+        return callback(new Error('CORS not allowed by policy'), false);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+}));
 
 // Body Parsers
 app.use(express.json());
