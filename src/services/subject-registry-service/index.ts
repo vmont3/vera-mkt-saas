@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { requireAuth } from '../auth-service/middleware/requireAuth';
+import { requireAuth } from '../../security/middleware';
 import { upload } from './middleware/uploadMiddleware';
 import {
     createSubject,

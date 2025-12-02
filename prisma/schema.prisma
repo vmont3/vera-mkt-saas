@@ -117,3 +117,150 @@ model AuditLog {
   details    Json?
   createdAt  DateTime @default(now())
 }
+
+// --- Universal Partner Module Models ---
+
+model Partner {
+  id             String            @id @default(uuid())
+  name           String
+  slug           String            @unique // e.g., "e-recycle"
+  segment        String            // "recycle", "benefits", etc.
+  isActive       Boolean           @default(true)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  
+  config         PartnerConfig?
+  apiKeys        PartnerApiKey[]
+  assets         PartnerAsset[]
+  events         PartnerEvent[]
+  batches        PartnerBatch[]
+  signatures     PartnerSignature[]
+  webhooks       PartnerWebhook[]
+  audits         PartnerAudit[]
+}
+
+model PartnerApiKey {
+  id                 String    @id @default(uuid())
+  partnerId          String
+  partner            Partner   @relation(fields: [partnerId], references: [id])
+  keyHash            String    @unique
+  scopes             Json?     // ["read", "write", "admin"]
+  rateLimitPerMinute Int       @default(60)
+  isActive           Boolean   @default(true)
+  lastUsedAt         DateTime?
+  createdAt          DateTime  @default(now())
+}
+
+model PartnerConfig {
+  id             String   @id @default(uuid())
+  partnerId      String   @unique
+  partner        Partner  @relation(fields: [partnerId], references: [id])
+  
+  // JSON configuration for dynamic behavior
+  // Includes: assetSchema, lifecycle, partnerRules, pricingRules, anchoringRules, signatureRules, webhookRules, riskRules
+  config         Json
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model PartnerAsset {
+  id             String   @id @default(uuid())
+  partnerId      String
+  partner        Partner  @relation(fields: [partnerId], references: [id])
+  
+  externalId     String?  // ID in the partner's system
+  type           String   // "electronic", "glass", "pet", etc.
+  status         String   // Dynamic based on lifecycle, e.g., "discardStarted", "anchored"
+  
+  metadata       Json     // Flexible data: weight, serial, purity, photos, etc.
+  
+  ownerId        String?  // User ID if applicable
+  
+  batchId        String?
+  batch          PartnerBatch? @relation(fields: [batchId], references: [id])
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  events         PartnerEvent[]
+  signatures     PartnerSignature[]
+}
+
+model PartnerEvent {
+  id             String   @id @default(uuid())
+  partnerId      String
+  partner        Partner  @relation(fields: [partnerId], references: [id])
+  
+  eventType      String   // "onAssetRegistered", "onOwnershipTransferred", etc.
+  payload        Json
+  
+  assetId        String?
+  asset          PartnerAsset? @relation(fields: [assetId], references: [id])
+  
+  processed      Boolean  @default(false)
+  processedAt    DateTime?
+  
+  createdAt      DateTime @default(now())
+}
+
+model PartnerBatch {
+  id             String   @id @default(uuid())
+  partnerId      String
+  partner        Partner  @relation(fields: [partnerId], references: [id])
+  
+  status         String   // "OPEN", "CLOSED", "ANCHORED"
+  itemsCount     Int      @default(0)
+  
+  anchoredHash   String?
+  blockchainTxId String?
+  
+  assets         PartnerAsset[]
+  
+  createdAt      DateTime @default(now())
+  closedAt       DateTime?
+  anchoredAt     DateTime?
+}
+
+model PartnerSignature {
+  id             String   @id @default(uuid())
+  partnerId      String
+  partner        Partner  @relation(fields: [partnerId], references: [id])
+  
+  assetId        String
+  asset          PartnerAsset @relation(fields: [assetId], references: [id])
+  
+  signerId       String?  // User ID or External ID
+  type           String   // "terminal", "app", "govbr"
+  status         String   // "requested", "pending", "completed", "declined"
+  
+  signatureData  Json?    // Raw signature data, proof, etc.
+  
+  requestedAt    DateTime @default(now())
+  signedAt       DateTime?
+}
+
+model PartnerWebhook {
+  id             String   @id @default(uuid())
+  partnerId      String
+  partner        Partner  @relation(fields: [partnerId], references: [id])
+  
+  url            String
+  secret         String?
+  eventTypes     Json     // Array of strings
+  isActive       Boolean  @default(true)
+  
+  createdAt      DateTime @default(now())
+}
+
+model PartnerAudit {
+  id             String   @id @default(uuid())
+  partnerId      String
+  partner        Partner  @relation(fields: [partnerId], references: [id])
+  
+  action         String
+  actor          String?
+  details        Json?
+  
+  createdAt      DateTime @default(now())
+}
