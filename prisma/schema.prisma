@@ -30,6 +30,13 @@ model User {
   // Audit Relations
   auditRequestsMade     AuthorityAuditRequest[] @relation("AuditRequester")
   auditRequestsReceived AuthorityAuditRequest[] @relation("AuditOwner")
+  
+  // Financial
+  referralCode          String?  @unique
+  referredBy            String?
+  orders                Order[]
+  commissions           Commission[]
+  persona               UserPersona?
 }
 
 model Subject {
@@ -161,6 +168,7 @@ model Partner {
   signatures     PartnerSignature[]
   webhooks       PartnerWebhook[]
   audits         PartnerAudit[]
+  commissions    Commission[]
 }
 
 model PartnerApiKey {
@@ -707,4 +715,135 @@ model WebhookDelivery {
   deliveredAt    DateTime?
   
   @@index([status, nextAttemptAt])
+}
+
+// ============= FINANCIAL MODULE =============
+
+model Order {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  
+  amount        Float
+  currency      String   @default("BRL")
+  status        String   // PENDING, PAID, FAILED
+  
+  items         OrderItem[]
+  commissions   Commission[]
+  
+  gatewayId     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model OrderItem {
+  id            String   @id @default(uuid())
+  orderId       String
+  order         Order    @relation(fields: [orderId], references: [id])
+  
+  description   String
+  quantity      Int
+  unitPrice     Float
+  totalPrice    Float
+  
+  type          String   // "CREDIT", "PRODUCT", "SERVICE"
+  referenceId   String?
+}
+
+model Commission {
+  id            String   @id @default(uuid())
+  
+  orderId       String
+  order         Order    @relation(fields: [orderId], references: [id])
+  
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id])
+  
+  partnerId     String?
+  partner       Partner? @relation(fields: [partnerId], references: [id])
+  
+  type          String   // "REFERRAL", "MANUFACTURER", "RETAILER"
+  
+  amount        Float
+  status        String   // PENDING, AVAILABLE, WITHDRAWN, CANCELLED
+  
+  availableAt   DateTime 
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============= GROWTH ENGINE MODULE =============
+
+model UserPersona {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id])
+  
+  isParent      Boolean  @default(false) // Has "Child" assets
+  isPetOwner    Boolean  @default(false) // Has "Pet" assets
+  isVehicleOwner Boolean @default(false) // Has "Vehicle" assets
+  isBusiness    Boolean  @default(false) // Has > 10 assets or CNPJ
+  
+  lastAnalyzed  DateTime @default(now())
+  opportunities Json?    // Array of AI prompts for Vera
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============= SOCIAL MEDIA AUTOMATION MODULE =============
+
+model SocialAccount {
+  id            String   @id @default(uuid())
+  platform      String   // "INSTAGRAM", "WHATSAPP", "LINKEDIN", "TWITTER"
+  username      String
+  accessToken   String   // Encrypted
+  refreshToken  String?  // Encrypted
+  expiresAt     DateTime?
+  status        String   @default("ACTIVE") // ACTIVE, DISCONNECTED
+  
+  posts         SocialPost[]
+  interactions  SocialInteraction[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model SocialPost {
+  id            String   @id @default(uuid())
+  accountId     String
+  account       SocialAccount @relation(fields: [accountId], references: [id])
+  
+  content       String   // Text content
+  mediaUrls     Json?    // Array of image/video URLs
+  
+  status        String   @default("DRAFT") // DRAFT, SCHEDULED, PUBLISHED, FAILED
+  scheduledFor  DateTime?
+  publishedAt   DateTime?
+  
+  platformPostId String? // ID returned by the platform
+  
+  metrics       Json?    // { likes: 10, shares: 2 }
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model SocialInteraction {
+  id            String   @id @default(uuid())
+  accountId     String
+  account       SocialAccount @relation(fields: [accountId], references: [id])
+  
+  type          String   // "COMMENT", "DM", "MENTION"
+  externalId    String   // ID on the platform
+  senderHandle  String
+  content       String
+  
+  sentiment     String?  // "POSITIVE", "NEGATIVE", "NEUTRAL" (Analyzed by AI)
+  
+  status        String   @default("PENDING") // PENDING, REPLIED, IGNORED
+  replyContent  String?
+  repliedAt     DateTime?
+  
+  createdAt     DateTime @default(now())
 }

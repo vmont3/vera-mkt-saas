@@ -305,7 +305,7 @@ export class TagRegistryService {
             operator: params.operatorId ? { connect: { id: params.operatorId } } : undefined,
             station: params.stationId ? { connect: { id: params.stationId } } : undefined,
 
-            status: 'PENDING',
+            status: 'AWAITING_PAYMENT',
             priority: 0,
         });
 

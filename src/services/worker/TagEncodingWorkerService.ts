@@ -84,7 +84,7 @@ export class TagEncodingWorkerService {
             try {
                 await this.initializeDriver();
             } catch (driverError) {
-                throw new Error(`Driver initialization failed: ${driverError.message}`);
+                throw new Error(`Driver initialization failed: ${(driverError as Error).message}`);
             }
 
             if (!this.driver || !this.encoder) {
@@ -136,7 +136,7 @@ export class TagEncodingWorkerService {
                     await tx.nTAG424Tag.update({
                         where: { id: jobRecord.tagId },
                         data: {
-                            uid: result.uid,
+                            uid: result.uid || '',
                             status: 'ACTIVE',
                             encodedAt: new Date(),
                             encodedBy: 'SYSTEM_WORKER',

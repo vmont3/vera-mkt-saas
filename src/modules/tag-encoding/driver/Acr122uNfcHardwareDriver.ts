@@ -129,7 +129,7 @@ export class Acr122uNfcHardwareDriver implements NfcHardwareDriver {
             return response;
         } catch (err) {
             this.logger.error(`[ACR122U] Transmit error:`, err);
-            throw new Error(`Transmit failed: ${err.message}`);
+            throw new Error(`Transmit failed: ${(err as Error).message}`);
         }
     }
 
