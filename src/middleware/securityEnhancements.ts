@@ -23,16 +23,19 @@ export const qrRateLimiter = rateLimit({
 // 3) Audit log middleware (non‑blocking)
 export const auditLog = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        await prisma.auditLog.create({
-            data: {
-                actorId: (req as any).user?.id ?? 'anonymous',
-                action: req.method,
-                details: {
-                    service: req.originalUrl,
-                    ip: req.ip,
-                    body: JSON.stringify(req.body).slice(0, 300),
-                },
-            },
+        const { AuditLogService } = await import('../services/audit/AuditLogService');
+        const auditService = new AuditLogService();
+        await auditService.log({
+            eventType: 'API_REQUEST',
+            severity: 'INFO',
+            actorType: (req as any).user ? 'USER' : 'API',
+            actorId: (req as any).user?.id ?? 'anonymous',
+            payload: {
+                method: req.method,
+                url: req.originalUrl,
+                ip: req.ip,
+                body: JSON.stringify(req.body).slice(0, 300),
+            }
         });
     } catch (e) {
         console.error('Audit log error:', e);

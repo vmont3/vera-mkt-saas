@@ -1,39 +1,59 @@
 import { Request, Response, NextFunction } from 'express';
+import { AuditLogService } from '../services/audit/AuditLogService';
 
-// Placeholder for Redis client
-const redisClient = {
-    get: async (key: string) => null,
-    set: async (key: string, value: any, mode?: string, duration?: number) => { },
-    incr: async (key: string) => 1,
-    expire: async (key: string, seconds: number) => { },
-};
+// Simple in-memory store for rate limiting (replace with Redis in production)
+const memoryStore: Record<string, { count: number; resetTime: number }> = {};
 
-export const rateLimiter = (limit: number, windowMs: number) => {
+/**
+ * Creates a rate limiter middleware
+ * @param limit Max requests per window
+ * @param windowMs Window size in milliseconds
+ * @param endpointName Name of the endpoint for logging
+ */
+export const rateLimiter = (limit: number, windowMs: number, endpointName: string = 'generic') => {
     return async (req: Request, res: Response, next: NextFunction) => {
         const ip = req.ip || req.socket.remoteAddress || 'unknown';
-        const key = `rate_limit:${ip}`;
+        const key = `rate_limit:${endpointName}:${ip}`;
+        const now = Date.now();
 
-        try {
-            // Simple counter implementation simulation
-            // In production, this would use the real Redis client
-            const current = await redisClient.incr(key);
-
-            if (current === 1) {
-                await redisClient.expire(key, windowMs / 1000);
-            }
-
-            if (current > limit) {
-                return res.status(429).json({
-                    error: 'Too Many Requests',
-                    message: 'Please try again later.'
-                });
-            }
-
-            next();
-        } catch (error) {
-            console.error('Rate limiter error:', error);
-            // Fail open if Redis is down
-            next();
+        if (!memoryStore[key] || now > memoryStore[key].resetTime) {
+            memoryStore[key] = {
+                count: 1,
+                resetTime: now + windowMs
+            };
+        } else {
+            memoryStore[key].count++;
         }
+
+        if (memoryStore[key].count > limit) {
+            // Log AuditLog only once per window exceeded to avoid spam
+            if (memoryStore[key].count === limit + 1) {
+                try {
+                    const auditService = new AuditLogService();
+                    await auditService.log({
+                        eventType: 'RATE_LIMIT_EXCEEDED',
+                        severity: 'WARNING',
+                        actorType: 'SYSTEM',
+                        actorId: 'RateLimiter',
+                        payload: {
+                            ip,
+                            endpoint: endpointName,
+                            limit,
+                            windowMs
+                        }
+                    });
+                } catch (err) {
+                    console.error('Failed to log rate limit exceeded:', err);
+                }
+            }
+
+            return res.status(429).json({
+                error: 'Too Many Requests',
+                message: 'Please try again later.'
+            });
+        }
+
+        next();
     };
 };
+

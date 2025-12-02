@@ -32,8 +32,8 @@ export enum OwnershipFlow {
 
 export const PricingRulesSchema = z.object({
     formula: z.string(), // e.g., "(weight * basePrice * purity) + bonusESG"
-    basePrices: z.record(z.number()), // { "electronic": 5.0, "pet": 0.5 }
-    bonusRules: z.record(z.number()).optional(), // { "esg_container_90": 0.10 }
+    basePrices: z.record(z.string(), z.number()), // { "electronic": 5.0, "pet": 0.5 }
+    bonusRules: z.record(z.string(), z.number()).optional(), // { "esg_container_90": 0.10 }
 });
 
 export const PartnerRulesSchema = z.object({
@@ -70,7 +70,7 @@ export const RiskRulesSchema = z.object({
 export const AssetSchemaConfigSchema = z.object({
     allowedTypes: z.array(z.string()),
     requiredFields: z.array(z.string()),
-    validation: z.record(z.any()).optional(),
+    validation: z.record(z.string(), z.any()).optional(),
 });
 
 export const PartnerConfigSchema = z.object({
@@ -99,21 +99,21 @@ export const RegisterAssetSchema = z.object({
     type: z.string(),
     externalId: z.string().optional(),
     ownerId: z.string().optional(),
-    metadata: z.record(z.any()), // weight, photo, etc.
+    metadata: z.record(z.string(), z.any()), // weight, photo, etc.
 });
 
 export const UpdateAssetSchema = z.object({
     status: z.string().optional(),
-    metadata: z.record(z.any()).optional(),
+    metadata: z.record(z.string(), z.any()).optional(),
 });
 
 export const ReviewAssetSchema = z.object({
     decision: z.enum(['APPROVED', 'REJECTED', 'AUDIT']),
     notes: z.string().optional(),
-    metadataUpdates: z.record(z.any()).optional(),
+    metadataUpdates: z.record(z.string(), z.any()).optional(),
 });
 
 export const SignatureCallbackSchema = z.object({
     signerId: z.string(),
-    signatureData: z.record(z.any()),
+    signatureData: z.record(z.string(), z.any()),
 });
