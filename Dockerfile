@@ -1,39 +1,49 @@
 # Stage 1: Builder
 FROM node:18-alpine AS builder
+
 WORKDIR /app
+
+# Install dependencies
 COPY package*.json ./
-COPY prisma ./prisma/
+# Use ci for deterministic builds
 RUN npm ci
-COPY tsconfig.json ./
-COPY src ./src
-RUN npx prisma generate
+
+# Copy source code
+COPY . .
+
+# Build TypeScript
 RUN npm run build
-# Remove devDeps to keep only production deps
-RUN npm prune --production
 
-# Stage 2: Runner
+# Stage 2: Production
 FROM node:18-alpine AS runner
+
 WORKDIR /app
-ENV NODE_ENV=production
 
-# Create non-root user
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+# Create non-root user for security
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S nodejs -u 1001
 
-# Copy only necessary files
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/node_modules ./node_modules
+# Install only production dependencies
+COPY package*.json ./
+RUN npm ci --only=production
+
+# Copy built assets from builder
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/prisma ./prisma
+# Copy Prisma Client
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
-# Change ownership
-RUN chown -R appuser:appgroup /app
+# Set ownership to non-root user
+# Note: COPY --chown is better but CHOWN works
+USER root
+RUN chown -R nodejs:nodejs /app
+USER nodejs
 
-USER appuser
-
+# Expose port
 EXPOSE 3000
 
 # Healthcheck
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=3s \
   CMD wget --quiet --tries=1 --spider http://localhost:3000/health || exit 1
 
-CMD ["node", "dist/app.js"]
+# Start application
+CMD ["node", "dist/index.js"]

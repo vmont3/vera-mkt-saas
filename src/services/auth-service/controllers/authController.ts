@@ -52,13 +52,14 @@ export const register = async (req: Request, res: Response) => {
 
         return res.status(201).json({
             success: true,
-            message: 'User registered successfully',
+            message: 'User registered successfully. Please complete KYC.',
             accessToken,
             refreshToken,
             user: {
                 id: user.id,
                 email: user.email,
-                kycStatus: user.kycStatus
+                kycStatus: user.kycStatus,
+                nextSteps: ['FACIAL_RECOGNITION', 'SMS_VERIFICATION']
             }
         });
 

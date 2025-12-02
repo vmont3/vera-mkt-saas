@@ -50,18 +50,38 @@ export class BackupService {
 
         try {
             // 1. Dump Database
-            // Note: In a real incremental scenario, we'd use WAL archiving or logical replication slots.
-            // For this implementation, we'll stick to pg_dump for FULL and a simulated incremental (or just full for now as MVP).
+            // Secure implementation using spawn to avoid shell injection
             const dbUrl = process.env.DATABASE_URL;
             if (!dbUrl) throw new Error('DATABASE_URL not configured');
 
-            // Mask password in logs
-            const safeDbUrl = dbUrl.replace(/:[^:@]+@/, ':***@');
+            // Parse DB URL safely
+            // Format: postgres://user:pass@host:port/dbname
+            const url = new URL(dbUrl);
 
-            // Basic pg_dump command
-            const command = `pg_dump "${dbUrl}" -F p -f "${filePath}"`;
+            // Construct arguments for pg_dump
+            // We use PGPASSWORD env var for password to avoid leaking it in process list
+            const env = { ...process.env, PGPASSWORD: url.password };
 
-            await execAsync(command);
+            const args = [
+                '-h', url.hostname,
+                '-p', url.port,
+                '-U', url.username,
+                '-F', 'p', // Plain text format
+                '-f', filePath,
+                url.pathname.substring(1) // Remove leading slash
+            ];
+
+            await new Promise<void>((resolve, reject) => {
+                const { spawn } = require('child_process');
+                const child = spawn('pg_dump', args, { env });
+
+                child.on('exit', (code: number) => {
+                    if (code === 0) resolve();
+                    else reject(new Error(`pg_dump failed with code ${code}`));
+                });
+
+                child.on('error', (err: Error) => reject(err));
+            });
 
             let finalPath = filePath;
             let isEncrypted = false;

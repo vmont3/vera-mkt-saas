@@ -39,3 +39,5 @@ docker-compose.override.yml
 
 # OS
 Thumbs.db
+
+src/vera-mkt-saas
