@@ -14,7 +14,22 @@ model User {
   password     String
   kycStatus    String   @default("pending")
   createdAt    DateTime @default(now())
+  
+  // Relations
   wallet       Wallet?
+  encoderQueue EncoderQueue[]
+  incidentsReported Incident[] @relation("IncidentReporter")
+  incidentsOwned    Incident[] @relation("IncidentOwner")
+  incidentAudits    IncidentAudit[]
+  
+  // Ownership Relations
+  assetsOwned       PartnerAsset[] @relation("AssetOwner")
+  transfersSent     OwnershipTransfer[] @relation("TransferFrom")
+  transfersReceived OwnershipTransfer[] @relation("TransferTo")
+  
+  // Audit Relations
+  auditRequestsMade     AuthorityAuditRequest[] @relation("AuditRequester")
+  auditRequestsReceived AuthorityAuditRequest[] @relation("AuditOwner")
 }
 
 model Subject {
@@ -24,6 +39,11 @@ model Subject {
   publicMetadata Json?
   privacyPolicy  Json?
   createdAt      DateTime @default(now())
+  
+  // Relations
+  ntag424Tags    NTAG424Tag[]
+  encoderQueue   EncoderQueue[]
+  incidents      Incident[]
 }
 
 model Tag {
@@ -69,11 +89,14 @@ model Wallet {
 }
 
 model OfflineEvent {
-  id         String   @id @default(uuid())
-  subjectId  String
-  rawPayload Json
-  status     String   @default("pending")
-  createdAt  DateTime @default(now())
+  id          String    @id @default(cuid())
+  sourceId    String?
+  type        String
+  payload     Json
+  status      String    @default("PENDING")
+  error       String?
+  createdAt   DateTime  @default(now())
+  processedAt DateTime?
 }
 
 model LifecycleEvent {
@@ -110,13 +133,7 @@ model Delegation {
   createdAt   DateTime @default(now())
 }
 
-model AuditLog {
-  id         String   @id @default(uuid())
-  actorId    String
-  action     String
-  details    Json?
-  createdAt  DateTime @default(now())
-}
+
 
 // --- Universal Partner Module Models ---
 
@@ -125,6 +142,13 @@ model Partner {
   name           String
   slug           String            @unique // e.g., "e-recycle"
   segment        String            // "recycle", "benefits", etc.
+  type           String            @default("MANUFACTURER") // "MANUFACTURER", "RETAILER", "INSURER"
+  status         String            @default("ACTIVE") // "ACTIVE", "SUSPENDED"
+  
+  webhookUrl     String?           // For notifications
+  maxAssets      Int?              // Quota
+  maxDailyRegistrations Int?       // Quota
+  
   isActive       Boolean           @default(true)
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
@@ -140,15 +164,16 @@ model Partner {
 }
 
 model PartnerApiKey {
-  id                 String    @id @default(uuid())
+  id                 String    @id @default(cuid())
   partnerId          String
   partner            Partner   @relation(fields: [partnerId], references: [id])
-  keyHash            String    @unique
-  scopes             Json?     // ["read", "write", "admin"]
-  rateLimitPerMinute Int       @default(60)
-  isActive           Boolean   @default(true)
-  lastUsedAt         DateTime?
+  name               String
+  apiKeyHash         String    @unique
+  scopes             String[]  // e.g. ["asset.read", "asset.write"]
+  active             Boolean   @default(true)
   createdAt          DateTime  @default(now())
+  lastUsedAt         DateTime?
+  expiresAt          DateTime?
 }
 
 model PartnerConfig {
@@ -170,21 +195,140 @@ model PartnerAsset {
   partner        Partner  @relation(fields: [partnerId], references: [id])
   
   externalId     String?  // ID in the partner's system
+  publicId       String?  @unique // Verun-ready public ID (safe to expose)
   type           String   // "electronic", "glass", "pet", etc.
   status         String   // Dynamic based on lifecycle, e.g., "discardStarted", "anchored"
   
   metadata       Json     // Flexible data: weight, serial, purity, photos, etc.
   
   ownerId        String?  // User ID if applicable
+  owner          User?    @relation("AssetOwner", fields: [ownerId], references: [id])
   
   batchId        String?
   batch          PartnerBatch? @relation(fields: [batchId], references: [id])
   
+  // Category & Template (Legacy)
+  categoryId     String?
+  category       AssetCategory? @relation(fields: [categoryId], references: [id])
+  
+  templateId     String?
+  template       AssetTemplate? @relation(fields: [templateId], references: [id])
+
+  // New Category Template System
+  categorySlug   String?
+  categoryTemplate CategoryTemplate? @relation(fields: [categorySlug], references: [slug])
+  
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   
+  // Relations
   events         PartnerEvent[]
   signatures     PartnerSignature[]
+  ntag424Tags    NTAG424Tag[]
+  encoderQueue   EncoderQueue[]
+  incidents      Incident[]
+  ownershipTransfers OwnershipTransfer[]
+  auditRequests  AuthorityAuditRequest[]
+}
+
+model CategoryTemplate {
+  id            String   @id @default(cuid())
+  slug          String   @unique    // "bike", "dog", "luxury-watch", "jersey"
+  displayName   String             // "Bicicleta", "Cachorro", "Relógio de Luxo"
+  iconUrl       String?            // optional, for UI
+  description   String?
+  fields        Json               // dynamic field schema definition
+  uiSchema      Json               // UI metadata (ordering, grouping, labels)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // relations:
+  assets        PartnerAsset[]
+}
+
+model AssetCategory {
+  id             String   @id @default(cuid())
+  slug           String   @unique // "bike", "car"
+  name           String
+  description    String?
+  active         Boolean  @default(true)
+  
+  templates      AssetTemplate[]
+  assets         PartnerAsset[]
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model AssetTemplate {
+  id             String   @id @default(cuid())
+  
+  categoryId     String
+  category       AssetCategory @relation(fields: [categoryId], references: [id])
+  
+  version        Int
+  schema         Json     // The JSON schema for validation
+  isDefault      Boolean  @default(false)
+  
+  assets         PartnerAsset[]
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@unique([categoryId, version])
+}
+
+model OwnershipTransfer {
+  id             String   @id @default(uuid())
+  
+  assetId        String
+  asset          PartnerAsset @relation(fields: [assetId], references: [id])
+  
+  fromOwnerId    String
+  fromOwner      User     @relation("TransferFrom", fields: [fromOwnerId], references: [id])
+  
+  toOwnerId      String
+  toOwner        User     @relation("TransferTo", fields: [toOwnerId], references: [id])
+  
+  status         String   @default("PENDING") // PENDING, ACCEPTED, REJECTED, CANCELLED
+  
+  txId           String?  // Algorand Transaction ID
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@index([assetId])
+  @@index([fromOwnerId])
+  @@index([toOwnerId])
+  @@index([status])
+}
+
+model AuthorityAuditRequest {
+  id             String   @id @default(cuid())
+  
+  assetId        String
+  asset          PartnerAsset @relation(fields: [assetId], references: [id])
+  
+  requesterId    String
+  requester      User     @relation("AuditRequester", fields: [requesterId], references: [id])
+  
+  ownerId        String
+  owner          User     @relation("AuditOwner", fields: [ownerId], references: [id])
+  
+  status         String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  reason         String
+  
+  auditToken     String?  @unique
+  validUntil     DateTime?
+  
+  createdAt      DateTime @default(now())
+  approvedAt     DateTime?
+  rejectedAt     DateTime?
+  
+  @@index([assetId])
+  @@index([requesterId])
+  @@index([ownerId])
+  @@index([auditToken])
 }
 
 model PartnerEvent {
@@ -209,6 +353,7 @@ model PartnerBatch {
   partnerId      String
   partner        Partner  @relation(fields: [partnerId], references: [id])
   
+  type           String   @default("GENERAL") // "DISPOSAL", "ANCHORING"
   status         String   // "OPEN", "CLOSED", "ANCHORED"
   itemsCount     Int      @default(0)
   
@@ -263,4 +408,303 @@ model PartnerAudit {
   details        Json?
   
   createdAt      DateTime @default(now())
+}
+
+// ============= NTAG 424 DNA CORE MODELS =============
+
+model NTAG424Tag {
+  id                String   @id @default(uuid())
+  uid               String   @unique
+  
+  linkedSubjectId   String?
+  linkedSubject     Subject? @relation(fields: [linkedSubjectId], references: [id])
+  
+  partnerAssetId    String?
+  partnerAsset      PartnerAsset? @relation(fields: [partnerAssetId], references: [id])
+  
+  // Falcon-512 Post-Quantum Cryptography
+  falconMasterHash  String?  // SHA-256(Falcon signature) - full hash stored here
+  falconPublicKey   String?  // Hex-encoded system-wide public key reference
+  falconSignature   String?  // Hex-encoded Falcon-512 signature (for audit)
+  
+  masterHashVaultKey String
+  hashTruncated     String
+  truncatedBits     Int      @default(128)
+  
+  configId          String
+  config            NTAG424Config @relation(fields: [configId], references: [id])
+  
+  status            String   @default("PENDING_ENCODING")
+  lastAcceptedCtr   Int      @default(0)
+  
+  suspiciousCount   Int      @default(0)
+  lastSuspiciousAt  DateTime?
+  
+  encodedAt         DateTime?
+  encodedBy         String?
+  encoderStationId  String?
+  encoderStation    EncoderStation? @relation(fields: [encoderStationId], references: [id])
+  
+  verifications     TagVerificationLog[]
+  incidents         Incident[]
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model NTAG424Config {
+  id                String   @id @default(uuid())
+  
+  keyAppSecretArn   String
+  keySdmSecretArn   String
+  keyNdefSecretArn  String?
+  keyProtSecretArn  String?
+  keyAuthSecretArn  String?
+  
+  randomIdEnabled   Boolean  @default(true)
+  lrpModeEnabled    Boolean  @default(true)
+  
+  sdmUrlTemplate    String
+  sdmEncOffset      Int
+  sdmEncLength      Int
+  sdmReadCtrOffset  Int
+  sdmMacOffset      Int
+  sdmMacInputOffset Int
+  
+  ndefFileSize      Int      @default(256)
+  protFileSize      Int      @default(128)
+  
+  configVersion     String   @default("1.0")
+  description       String?
+  
+  tags              NTAG424Tag[]
+  encoderQueue      EncoderQueue[]
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model EncoderQueue {
+  id                String   @id @default(uuid())
+  
+  configId          String
+  config            NTAG424Config @relation(fields: [configId], references: [id])
+  
+  subjectId         String?
+  subject           Subject? @relation(fields: [subjectId], references: [id])
+  
+  partnerAssetId    String?
+  partnerAsset      PartnerAsset? @relation(fields: [partnerAssetId], references: [id])
+  
+  masterHashVaultKey String
+  hashTruncated     String
+  
+  sdmPayload        Json
+  
+  stationId         String?
+  station           EncoderStation? @relation(fields: [stationId], references: [id])
+  
+  operatorId        String?
+  operator          User?    @relation(fields: [operatorId], references: [id])
+  
+  status            String   @default("PENDING")
+  priority          Int      @default(0)
+  
+  tagId             String?  @unique
+  encodedUid        String?
+  errorMessage      String?
+  attempts          Int      @default(0)
+  technicalLog      Json?
+  
+  createdAt         DateTime @default(now())
+  startedAt         DateTime?
+  completedAt       DateTime?
+  
+  @@index([status, priority])
+}
+
+model EncoderStation {
+  id                String   @id @default(uuid())
+  
+  name              String
+  type              String   @default("ACR122U")
+  serialNumber      String?  @unique
+  
+  location          String?
+  
+  isOnline          Boolean  @default(true)
+  lastHeartbeat     DateTime?
+  
+  offlineDbPath     String?
+  
+  tags              NTAG424Tag[]
+  queueItems        EncoderQueue[]
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model TagVerificationLog {
+  id                String   @id @default(uuid())
+  
+  tagId             String
+  tag               NTAG424Tag @relation(fields: [tagId], references: [id])
+  
+  sdmReadCtr        Int
+  uidFromTag        String
+  hashTruncated     String
+  
+  status            String
+  
+  macProvided       String
+  macCalculated     String
+  macValid          Boolean
+  
+  deviceId          String?
+  appId             String?
+  ipAddress         String?
+  geoLocation       Json?
+  userAgent         String?
+  
+  isOfflineSync     Boolean  @default(false)
+  offlineTimestamp  DateTime?
+  
+  createdAt         DateTime @default(now())
+  
+  @@index([tagId, sdmReadCtr])
+  @@index([status])
+}
+
+model Incident {
+  id                String   @id @default(uuid())
+  
+  tagId             String?
+  tag               NTAG424Tag? @relation(fields: [tagId], references: [id])
+  
+  subjectId         String?
+  subject           Subject? @relation(fields: [subjectId], references: [id])
+  
+  partnerAssetId    String?
+  partnerAsset      PartnerAsset? @relation(fields: [partnerAssetId], references: [id])
+  
+  type              String
+  description       String
+  
+  reportedBy        String?
+  reporter          User?    @relation("IncidentReporter", fields: [reportedBy], references: [id])
+  
+  originType        String
+  
+  status            String   @default("PENDING_APPROVAL")
+  
+  ownerId           String?
+  owner             User?    @relation("IncidentOwner", fields: [ownerId], references: [id])
+  
+  reviewedAt        DateTime?
+  reviewNotes       String?
+  
+  auditRecords      IncidentAudit[]
+  
+  attachments       Json?
+  
+  incidentDate      DateTime
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@index([status])
+  @@index([type])
+}
+
+model IncidentAudit {
+  id                String   @id @default(uuid())
+  
+  incidentId        String
+  incident          Incident @relation(fields: [incidentId], references: [id])
+  
+  authorityOrg      String
+  authorityId       String
+  officialProtocol  String?
+  
+  externalRefs      Json?
+  
+  submittedBy       String?
+  submitter         User?    @relation(fields: [submittedBy], references: [id])
+  
+  notes             String?
+  attachments       Json?
+  
+  submittedAt       DateTime @default(now())
+  ipAddress         String?
+  
+  @@index([incidentId])
+}
+
+model BlockchainAnchor {
+  id        String   @id @default(uuid())
+  assetId   String
+  txId      String
+  network   String
+  falconHash String
+  createdAt DateTime @default(now())
+}
+
+model PendingAnchor {
+  id          String   @id @default(cuid())
+  assetId     String
+  falconHash  String
+  attempts    Int      @default(0)
+  lastError   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  timestamp     DateTime @default(now())
+  eventType     String
+  severity      String
+  actorType     String
+  actorId       String?
+  assetId       String?
+  payload       Json?
+  signature     String
+  hashChainPrev String
+  hashChainThis String
+}
+
+// ============= WEBHOOKS MODULE =============
+
+model WebhookSubscription {
+  id             String   @id @default(cuid())
+  partnerId      String?  // Nullable for global subscriptions (e.g., Verun)
+  name           String
+  url            String
+  secret         String   // HMAC secret
+  eventTypes     Json     // Array of strings: ["asset.created", "incident.opened"]
+  active         Boolean  @default(true)
+  
+  deliveries     WebhookDelivery[]
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model WebhookDelivery {
+  id             String   @id @default(cuid())
+  
+  subscriptionId String
+  subscription   WebhookSubscription @relation(fields: [subscriptionId], references: [id])
+  
+  eventType      String
+  payload        Json
+  
+  status         String   @default("PENDING") // PENDING, DELIVERED, FAILED
+  attempts       Int      @default(0)
+  lastError      String?
+  nextAttemptAt  DateTime?
+  
+  createdAt      DateTime @default(now())
+  deliveredAt    DateTime?
+  
+  @@index([status, nextAttemptAt])
 }

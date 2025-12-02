@@ -1,25 +1,37 @@
+# Stage 1: Builder
 FROM node:18-alpine AS builder
-
-# Set working directory
 WORKDIR /app
-
-# Install dependencies (including dev for build)
-COPY package.json tsconfig.json ./
+COPY package*.json ./
+COPY prisma ./prisma/
+RUN npm ci
+COPY tsconfig.json ./
 COPY src ./src
+RUN npx prisma generate
+RUN npm run build
 
-RUN npm ci && npm run build
-
-# Production image
-FROM node:18-alpine
+# Stage 2: Runner
+FROM node:18-alpine AS runner
 WORKDIR /app
+ENV NODE_ENV=production
 
-# Copy only production dependencies and built files
-COPY --from=builder /app/package.json ./
+# Create non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+# Copy only necessary files
+COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/prisma ./prisma
 
-# Expose the port defined in env (default 3000)
+# Change ownership
+RUN chown -R appuser:appgroup /app
+
+USER appuser
+
 EXPOSE 3000
 
-# Start the application
-CMD ["node", "dist/index.js"]
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD wget --quiet --tries=1 --spider http://localhost:3000/health || exit 1
+
+CMD ["node", "dist/app.js"]

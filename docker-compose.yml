@@ -4,27 +4,27 @@ services:
   postgres:
     image: postgres:16
     ports:
-      - "5432:5432"
+      - ":5432"
     environment:
-      - POSTGRES_USER=qc_user
-      - POSTGRES_PASSWORD=qc_password
-      - POSTGRES_DB=qc_main
+      - POSTGRES_USER=
+      - POSTGRES_PASSWORD=
+      - POSTGRES_DB=
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
   redis:
     image: redis:7
     ports:
-      - "6379:6379"
+      - ":6379"
 
   rabbitmq:
     image: rabbitmq:3-management
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - ":5672"
+      - ":15672"
     environment:
-      - RABBITMQ_DEFAULT_USER=guest
-      - RABBITMQ_DEFAULT_PASS=guest
+      - RABBITMQ_DEFAULT_USER=
+      - RABBITMQ_DEFAULT_PASS=
 
 volumes:
   postgres_data:
