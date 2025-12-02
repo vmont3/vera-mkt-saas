@@ -1,11 +1,12 @@
 import { CopywriterAgent } from './CopywriterAgent';
 import { CriticAgent } from './CriticAgent';
 import { SeoSpecialistAgent } from './SeoSpecialistAgent';
-import { ImageGenerationService } from '../../image/ImageGenerationService';
+import { ImageGenerationService } from '../ImageGenerationService';
 import { MetaLearnerAgent } from '../core/MetaLearnerAgent';
 import { QuantumPredictorAgent } from './QuantumPredictorAgent';
 import { NarrativeWeaverAgent } from './NarrativeWeaverAgent';
 import { TenantConfig } from '../core/TenantConfigService';
+import { MemoryStream } from '../core/MemoryStream';
 
 export class AgentOrchestrator {
     private copywriters: Record<string, CopywriterAgent>;
