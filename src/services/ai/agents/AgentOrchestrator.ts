@@ -72,17 +72,23 @@ export class AgentOrchestrator {
         }
 
         // 4. Design Asset
-        const image = await this.designer.generateImage(brief, 'REALISTIC', tenant.name);
+        // Map tenant to brand enum
+        let brandEnum: 'QUANTUM' | 'VERUN' | 'PARTNER' = 'PARTNER';
+        if (tenant.name.toUpperCase().includes('QUANTUM')) brandEnum = 'QUANTUM';
+        if (tenant.name.toUpperCase().includes('VERUN')) brandEnum = 'VERUN';
+
+        const image = await this.designer.generateImage(brief, 'REALISTIC', brandEnum);
 
         // 5. Log to Tenant Memory
         // TODO: Partition memory by tenant.id
         await this.memory.logInteraction({
             id: `camp_${tenant.id}_${Date.now()}`,
-            type: 'campaign_generated',
+            type: 'mission_success', // Use a valid type from RewardEngine
             text: draft,
             persona: category,
             channel: channel || 'OMNI',
-            metadata: { tenantId: tenant.id, brief }
+            metadata: { tenantId: tenant.id, brief },
+            company: tenant.name // Add company ref
         });
 
         return {
