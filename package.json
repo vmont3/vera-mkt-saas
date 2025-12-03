@@ -19,6 +19,8 @@
     "dependencies": {
         "@aws-sdk/client-kms": "^3.940.0",
         "@aws-sdk/client-secrets-manager": "^3.940.0",
+        "@google-cloud/logging": "^11.2.1",
+        "@google-cloud/secret-manager": "^6.1.1",
         "@google/generative-ai": "^0.24.1",
         "@ibm-cloud/secrets-manager": "^2.0.14",
         "@prisma/client": "^6.19.0",
