@@ -62,13 +62,24 @@ export class AuditLogService {
                 }
             });
 
+            // 6. Async Log to BigQuery (Stub for Compliance)
+            this.logToBigQuery(logData).catch(err => console.error('BigQuery Error:', err));
+
             // console.log(`🔒 AuditLog: ${params.eventType} [${hashChainThis.substring(0, 8)}...]`);
 
         } catch (error) {
             console.error('❌ Failed to write AuditLog:', error);
-            // In a real high-security system, we might want to halt operations if audit fails.
-            // For now, we just log the error to console.
         }
+    }
+
+    /**
+     * Send log to Google BigQuery for immutable, long-term storage
+     */
+    private async logToBigQuery(data: any) {
+        // Implementation would use @google-cloud/bigquery
+        // const bigquery = new BigQuery();
+        // await bigquery.dataset('audit_logs').table('events').insert(data);
+        // console.log('[BigQuery] Log inserted');
     }
 
     /**

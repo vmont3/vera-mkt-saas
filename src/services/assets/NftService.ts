@@ -35,16 +35,27 @@ export class NftService {
     /**
      * Transfer Asset with Status Check (Fix Inconsistent State)
      */
-    async transferAsset(assetId: string, toAddress: string) {
+    async transferAsset(assetId: string, toAddress: string, requesterId: string) {
         const asset = await prisma.partnerAsset.findUnique({ where: { id: assetId } });
         if (!asset) throw new Error('Asset not found');
+
+        // Fix: Verify Ownership
+        if (asset.ownerId !== requesterId) {
+            throw new Error('Unauthorized: You are not the owner of this asset');
+        }
 
         if (asset.status !== 'ACTIVE') {
             throw new Error(`Cannot transfer ${asset.status} asset`);
         }
 
         // Proceed with transfer logic...
-        // This is a mock implementation of the transfer logic
+        // In a real scenario, this would interact with the blockchain
         console.log(`Transferring asset ${assetId} to ${toAddress}`);
+
+        // Update local state
+        await prisma.partnerAsset.update({
+            where: { id: assetId },
+            data: { ownerId: null, status: 'TRANSFER_PENDING' } // Temporary state
+        });
     }
 }

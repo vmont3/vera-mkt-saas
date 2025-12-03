@@ -9,19 +9,41 @@ if (!PRIVATE_KEY || !PUBLIC_KEY) {
 
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key-change-me';
 
+const JWT_SIGN_OPTS: jwt.SignOptions = {
+    expiresIn: '1h',
+    issuer: 'quantum-cert-backend',
+    audience: 'quantum-cert-users'
+};
+
+const JWT_VERIFY_OPTS: jwt.VerifyOptions = {
+    issuer: 'quantum-cert-backend',
+    audience: 'quantum-cert-users'
+};
+
+const REFRESH_SIGN_OPTS: jwt.SignOptions = {
+    expiresIn: '7d',
+    issuer: 'quantum-cert-backend',
+    audience: 'quantum-cert-users'
+};
+
+const REFRESH_VERIFY_OPTS: jwt.VerifyOptions = {
+    issuer: 'quantum-cert-backend',
+    audience: 'quantum-cert-users'
+};
+
 export const generateAccessToken = (userId: string, role: string) => {
     if (PRIVATE_KEY) {
-        return jwt.sign({ userId, role }, PRIVATE_KEY, { expiresIn: '1h', algorithm: 'RS256' });
+        return jwt.sign({ userId, role }, PRIVATE_KEY, { ...JWT_SIGN_OPTS, algorithm: 'RS256' });
     }
-    return jwt.sign({ userId, role }, JWT_SECRET, { expiresIn: '1h', algorithm: 'HS256' });
+    return jwt.sign({ userId, role }, JWT_SECRET, { ...JWT_SIGN_OPTS, algorithm: 'HS256' });
 };
 
 export const verifyAccessToken = (token: string) => {
     try {
         if (PUBLIC_KEY) {
-            return jwt.verify(token, PUBLIC_KEY, { algorithms: ['RS256'] });
+            return jwt.verify(token, PUBLIC_KEY, { ...JWT_VERIFY_OPTS, algorithms: ['RS256'] });
         }
-        return jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
+        return jwt.verify(token, JWT_SECRET, { ...JWT_VERIFY_OPTS, algorithms: ['HS256'] });
     } catch (error) {
         return null;
     }
@@ -29,17 +51,17 @@ export const verifyAccessToken = (token: string) => {
 
 export const generateRefreshToken = (userId: string) => {
     if (PRIVATE_KEY) {
-        return jwt.sign({ userId, type: 'refresh' }, PRIVATE_KEY, { expiresIn: '7d', algorithm: 'RS256' });
+        return jwt.sign({ userId, type: 'refresh' }, PRIVATE_KEY, { ...REFRESH_SIGN_OPTS, algorithm: 'RS256' });
     }
-    return jwt.sign({ userId, type: 'refresh' }, JWT_SECRET, { expiresIn: '7d', algorithm: 'HS256' });
+    return jwt.sign({ userId, type: 'refresh' }, JWT_SECRET, { ...REFRESH_SIGN_OPTS, algorithm: 'HS256' });
 };
 
 export const verifyRefreshToken = (token: string) => {
     try {
         if (PUBLIC_KEY) {
-            return jwt.verify(token, PUBLIC_KEY, { algorithms: ['RS256'] });
+            return jwt.verify(token, PUBLIC_KEY, { ...REFRESH_VERIFY_OPTS, algorithms: ['RS256'] });
         }
-        return jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
+        return jwt.verify(token, JWT_SECRET, { ...REFRESH_VERIFY_OPTS, algorithms: ['HS256'] });
     } catch (error) {
         return null;
     }

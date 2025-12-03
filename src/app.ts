@@ -59,7 +59,8 @@ app.use(cors({
         // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
 
-        if (allowedOrigins.length === 0 || allowedOrigins.indexOf(origin) !== -1) {
+        // STRICT: Do not allow all if list is empty. Must be explicit.
+        if (allowedOrigins.indexOf(origin) !== -1) {
             return callback(null, true);
         }
 
