@@ -138,4 +138,17 @@ export class AnalyticsService {
         report += `\n💡 **Conclusão**: A estratégia está diversificada e otimizada por canal.`;
         return report;
     }
+
+    /**
+     * Atomic Increment for Metrics (Fix Race Condition)
+     */
+    async incrementMetric(metric: string) {
+        // Assuming Prisma is available globally or imported
+        const prisma = new (require('@prisma/client').PrismaClient)();
+
+        await prisma.metric.updateMany({
+            where: { name: metric },
+            data: { value: { increment: 1 } }
+        });
+    }
 }

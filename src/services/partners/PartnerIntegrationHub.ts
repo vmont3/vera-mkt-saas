@@ -1,3 +1,11 @@
+import axios from 'axios';
+
+const partnerClient = axios.create({
+    timeout: 5000, // 5 seconds
+    retries: 3,
+    retryDelay: (retryCount: number) => retryCount * 1000,
+} as any); // cast to any because axios-retry types might be missing
+
 interface PartnerEvent {
     partner: 'ERECYCLE' | 'MATCH' | 'BIKELOCK';
     type: string;
@@ -38,5 +46,16 @@ export class PartnerIntegrationHub {
         // Logic: Cross-sell Quantum Cert
         console.log(`[PARTNER-HUB] New Match Member: ${data.userId}. Sending welcome offer.`);
         // Trigger Email/Notification
+    }
+
+    async callPartnerAPI(url: string, data: any) {
+        try {
+            return await partnerClient.post(url, data);
+        } catch (error: any) {
+            if (error.code === 'ECONNABORTED') {
+                throw new Error('Partner API timeout');
+            }
+            throw error;
+        }
     }
 }

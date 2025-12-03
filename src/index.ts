@@ -9,7 +9,10 @@ const PORT = process.env.PORT || 3000;
 // Initialize Services
 const veraChatService = new VeraChatService();
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV}`);
 });
+
+// Error 21: Global Request Timeout
+server.setTimeout(30000); // 30 seconds global timeout

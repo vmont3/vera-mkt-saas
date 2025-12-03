@@ -1,4 +1,4 @@
-import { ImageGenerationService } from '../../image/ImageGenerationService';
+import { ImageGenerationService } from '../ImageGenerationService';
 
 interface ReelConfig {
     topic: string;

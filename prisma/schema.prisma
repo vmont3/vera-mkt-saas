@@ -847,3 +847,10 @@ model SocialInteraction {
   
   createdAt     DateTime @default(now())
 }
+
+model Metric {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  value     Int      @default(0)
+  updatedAt DateTime @updatedAt
+}

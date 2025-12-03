@@ -7,11 +7,13 @@ if (!PRIVATE_KEY || !PUBLIC_KEY) {
     console.warn('⚠️ JWT Keys not configured. Using insecure fallback for development only.');
 }
 
+const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key-change-me';
+
 export const generateAccessToken = (userId: string, role: string) => {
     if (PRIVATE_KEY) {
         return jwt.sign({ userId, role }, PRIVATE_KEY, { expiresIn: '1h', algorithm: 'RS256' });
     }
-    return jwt.sign({ userId, role }, SECRET, { expiresIn: '1h', algorithm: 'HS256' });
+    return jwt.sign({ userId, role }, JWT_SECRET, { expiresIn: '1h', algorithm: 'HS256' });
 };
 
 export const verifyAccessToken = (token: string) => {
@@ -19,7 +21,7 @@ export const verifyAccessToken = (token: string) => {
         if (PUBLIC_KEY) {
             return jwt.verify(token, PUBLIC_KEY, { algorithms: ['RS256'] });
         }
-        return jwt.verify(token, SECRET, { algorithms: ['HS256'] });
+        return jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
     } catch (error) {
         return null;
     }
@@ -29,7 +31,7 @@ export const generateRefreshToken = (userId: string) => {
     if (PRIVATE_KEY) {
         return jwt.sign({ userId, type: 'refresh' }, PRIVATE_KEY, { expiresIn: '7d', algorithm: 'RS256' });
     }
-    return jwt.sign({ userId, type: 'refresh' }, SECRET, { expiresIn: '7d', algorithm: 'HS256' });
+    return jwt.sign({ userId, type: 'refresh' }, JWT_SECRET, { expiresIn: '7d', algorithm: 'HS256' });
 };
 
 export const verifyRefreshToken = (token: string) => {
@@ -37,7 +39,7 @@ export const verifyRefreshToken = (token: string) => {
         if (PUBLIC_KEY) {
             return jwt.verify(token, PUBLIC_KEY, { algorithms: ['RS256'] });
         }
-        return jwt.verify(token, SECRET, { algorithms: ['HS256'] });
+        return jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
     } catch (error) {
         return null;
     }
