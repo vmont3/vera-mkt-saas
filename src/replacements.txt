@@ -1,0 +1,2 @@
+mnemonic==>[REDACTED]
+INFURA_API_KEY==>[REDACTED]

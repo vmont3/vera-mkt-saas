@@ -67,7 +67,7 @@ export class MemoryStream {
     }
 
     private async mockEmbed(text: string): Promise<number[]> {
-        // Simulate a 1536-dim vector (OpenAI/Gemini standard)
+        // Simulate a 1536-dim vector (Gemini standard)
         return new Array(1536).fill(0).map(() => Math.random());
     }
 }
