@@ -169,6 +169,11 @@ model Partner {
   webhooks       PartnerWebhook[]
   audits         PartnerAudit[]
   commissions    Commission[]
+  
+  // Hive Relations
+  agents         AgentPersona[]
+  contentTasks   ContentTask[]
+  socialAccounts SocialAccount[]
 }
 
 model PartnerApiKey {
@@ -798,6 +803,87 @@ model SocialAccount {
   platform      String   // "INSTAGRAM", "WHATSAPP", "LINKEDIN", "TWITTER"
   username      String
   accessToken   String   // Encrypted
+  refreshToken  String?  // Encrypted
+  expiresAt     DateTime?
+  
+  partnerId     String
+  partner       Partner  @relation(fields: [partnerId], references: [id])
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============= HIVE ARCHITECTURE (VERA 5.0) =============
+
+model AgentPersona {
+  id            String   @id @default(uuid())
+  name          String
+  role          String   // "SPY", "MANAGER", "CREATOR", "DESIGNER", "VERIFIER", "SUPERVISOR"
+  segment       String   // e.g., "Tech", "Beauty", "Finance"
+  platform      String?  // "INSTAGRAM", "LINKEDIN", etc. (Null for Manager/Supervisor)
+  tone          String   // e.g., "Professional", "Witty"
+  
+  xp            Int      @default(0)
+  level         Int      @default(1)
+  
+  partnerId     String
+  partner       Partner  @relation(fields: [partnerId], references: [id])
+  
+  isActive      Boolean  @default(true)
+  config        Json?    // Specific agent config (e.g., Spy keywords)
+  
+  tasksCreated  ContentTask[] @relation("TaskCreator")
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model ContentTask {
+  id            String   @id @default(uuid())
+  
+  title         String
+  description   String   // The "Command" or "Idea"
+  
+  segment       String
+  platform      String
+  
+  status        String   @default("IDEA") // IDEA, DRAFT, VERIFIED, PENDING_APPROVAL, APPROVED, PUBLISHED, REJECTED
+  
+  copy          String?  @db.Text
+  imageUrl      String?
+  
+  metrics       Json?    // Predicted metrics from Spy
+  feedback      String?  // From Verifier or Admin
+  
+  creatorId     String?
+  creator       AgentPersona? @relation("TaskCreator", fields: [creatorId], references: [id])
+  
+  approval      ApprovalRequest?
+  
+  partnerId     String
+  partner       Partner  @relation(fields: [partnerId], references: [id])
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model ApprovalRequest {
+  id            String   @id @default(uuid())
+  
+  taskId        String   @unique
+  task          ContentTask @relation(fields: [taskId], references: [id])
+  
+  telegramMsgId String?  // ID of the poll/message in Telegram
+  
+  votesFor      Int      @default(0)
+  votesAgainst  Int      @default(0)
+  
+  status        String   @default("OPEN") // OPEN, APPROVED, REJECTED, EXPIRED
+  deadline      DateTime
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
   refreshToken  String?  // Encrypted
   expiresAt     DateTime?
   status        String   @default("ACTIVE") // ACTIVE, DISCONNECTED
