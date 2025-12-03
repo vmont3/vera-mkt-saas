@@ -7,13 +7,25 @@ interface ReelConfig {
 
 export class ReelsFactory {
     private designer: ImageGenerationService;
+    private cache: Map<string, any> = new Map(); // Mock Redis
 
     constructor() {
         this.designer = new ImageGenerationService();
     }
 
     async produceReel(config: ReelConfig) {
-        console.log(`[REELS] Starting production for: ${config.topic} (${config.persona})`);
+        // PERFORMANCE: Check Cache
+        const cacheKey = `reel:${config.topic}:${config.persona}`;
+        if (this.cache.has(cacheKey)) {
+            console.log(`[REELS] ⚡ Cache Hit for ${cacheKey}`);
+            return this.cache.get(cacheKey);
+        }
+
+        // SECURITY HARDENING: Input Validation
+        this.validateInput(config.topic);
+        const sanitizedTopic = this.sanitizeInput(config.topic);
+
+        console.log(`[REELS] Starting production for: ${sanitizedTopic} (${config.persona})`);
 
         // 1. Generate Viral Script
         const script = this.generateViralScript(config);
@@ -29,12 +41,18 @@ export class ReelsFactory {
         // const voice = await elevenLabs.synthesize(script.voiceover);
         // const video = await remotion.render(...)
 
-        return {
+        const result = {
             script,
             visual: image,
             status: 'DRAFT_READY',
             estimatedViralScore: 85 // Mocked score
         };
+
+        // PERFORMANCE: Set Cache (TTL 1 hour)
+        this.cache.set(cacheKey, result);
+        setTimeout(() => this.cache.delete(cacheKey), 3600000);
+
+        return result;
     }
 
     private generateViralScript(config: ReelConfig) {
@@ -70,5 +88,20 @@ export class ReelsFactory {
         if (config.persona === 'LUXURY') return `${base}, luxury watch on marble table, golden hour, shallow depth of field`;
         if (config.persona === 'INDUSTRIAL') return `${base}, industrial component on assembly line, blue neon lights, technical diagram overlay`;
         return `${base}, futuristic microchip, glowing circuits, cyberpunk atmosphere`;
+    }
+
+    private validateInput(input: string) {
+        if (input.length > 100) {
+            throw new Error('Input too long. Max 100 chars.');
+        }
+        const blocklist = ['ignore', 'system', 'password', 'key', 'admin'];
+        if (blocklist.some(word => input.toLowerCase().includes(word))) {
+            throw new Error('Input contains blocked words.');
+        }
+    }
+
+    private sanitizeInput(input: string): string {
+        // Remove special characters to prevent injection
+        return input.replace(/[^a-zA-Z0-9\s\u00C0-\u00FF]/g, '');
     }
 }

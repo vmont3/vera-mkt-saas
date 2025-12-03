@@ -7,6 +7,8 @@ import { CronService } from '../scheduler/CronService';
 import { ReelsFactory } from './reels/ReelsFactory';
 import { PartnerIntegrationHub } from '../partners/PartnerIntegrationHub';
 
+import { SecretManagerService } from '../../config/SecretManager';
+
 export class VeraChatService {
     private bot!: Telegraf;
     private cmo!: AgentOrchestrator;
@@ -19,9 +21,14 @@ export class VeraChatService {
     private isPaused: boolean = false;
     private adminGroupId: string | null = null;
     private pendingMessages: Map<number, string[]> = new Map();
+    // rateLimits defined below
 
     constructor() {
-        const token = process.env.TELEGRAM_BOT_TOKEN;
+        this.initialize();
+    }
+
+    private async initialize() {
+        const token = await SecretManagerService.getSecret('TELEGRAM_BOT_TOKEN');
         if (!token) {
             console.warn('[VERA-CHAT] No TELEGRAM_BOT_TOKEN found. Chat service disabled.');
             return;
@@ -52,6 +59,8 @@ export class VeraChatService {
         process.once('SIGTERM', () => this.bot.stop('SIGTERM'));
     }
 
+    private rateLimits: Map<number, number[]> = new Map(); // UserID -> Timestamps
+
     private initializeCommands() {
         // Middleware to check Admin
         const isAdmin = (ctx: any) => {
@@ -59,6 +68,27 @@ export class VeraChatService {
             // Also allow if message is from the Admin Group
             const isGroupAdmin = this.adminGroupId && ctx.chat.id.toString() === this.adminGroupId;
             return adminIds.includes(ctx.from.id) || isGroupAdmin;
+        };
+
+        // Security Middleware: Rate Limiting & Logging
+        const secure = (handler: (ctx: any) => Promise<void> | void) => {
+            return async (ctx: any) => {
+                const userId = ctx.from.id;
+
+                // 1. Rate Limit (15 cmd/min)
+                if (!this.checkRateLimit(userId)) {
+                    console.warn(`[SECURITY] Rate limit exceeded for user ${userId}`);
+                    return ctx.reply('⛔ Calma! Você está enviando muitos comandos. Aguarde um pouco.');
+                }
+
+                // 2. Auth Check (for sensitive commands, handled inside specific commands via isAdmin)
+
+                // 3. Audit Log (BigQuery Mock)
+                this.logAudit(userId, ctx.message.text);
+
+                // Execute
+                await handler(ctx);
+            };
         };
 
         // Start
@@ -69,7 +99,7 @@ export class VeraChatService {
         // Pause (Omni-Channel)
         this.bot.command('pause', (ctx) => {
             if (!isAdmin(ctx)) return ctx.reply('⛔ Acesso negado.');
-            
+
             const args = ctx.message.text.split(' ').slice(1);
             const target = args[0] ? args[0].toUpperCase() : 'ALL';
 
@@ -119,7 +149,7 @@ export class VeraChatService {
             try {
                 // 1. Send to User
                 await this.social.relayReply(platform, user, msg);
-                
+
                 // 2. Learn (Save to KB) - Implicit Learning
                 ctx.reply(`✅ Enviado para ${user} no ${platform}.`);
             } catch (e) {
@@ -130,10 +160,10 @@ export class VeraChatService {
         // Command to explicitly teach: /learn <question> | <answer>
         this.bot.command('learn', (ctx) => {
             if (!isAdmin(ctx)) return;
-            
+
             const content = ctx.message.text.substring(7); // Remove '/learn '
             const parts = content.split('|');
-            
+
             if (parts.length !== 2) {
                 return ctx.reply('⚠️ Uso: /learn Pergunta | Resposta');
             }
@@ -156,10 +186,10 @@ export class VeraChatService {
         this.bot.command('viral', async (ctx) => {
             if (!isAdmin(ctx)) return;
             const topic = ctx.message.text.substring(7) || 'Quantum Tech';
-            
+
             ctx.reply('🎬 Luz, Câmera... Criando Reel!');
             const reel = await this.reels.produceReel({ topic, persona: 'TECH' });
-            
+
             await ctx.replyWithPhoto(reel.visual, {
                 caption: `🎥 **Roteiro Viral Gerado**\n\n${reel.script.caption}\n\nScore Previsto: ${reel.estimatedViralScore}/100`
             });
@@ -170,7 +200,7 @@ export class VeraChatService {
             const status = this.isPaused ? '⏸️ PAUSADA (Modo Humano)' : '▶️ ONLINE (Modo IA)';
             const insta = this.social.isPaused('INSTAGRAM') ? '⏸️' : '▶️';
             const zap = this.social.isPaused('WHATSAPP') ? '⏸️' : '▶️';
-            
+
             ctx.reply(`Status Geral: ${status}\nInsta: ${insta} | Zap: ${zap}`);
         });
     }
@@ -203,7 +233,7 @@ export class VeraChatService {
     private async handleMessage(ctx: any, text: string) {
         try {
             await ctx.sendChatAction('typing');
-            
+
             // 1. Search Knowledge Base
             const kbAnswer = this.kb.search(text);
 
@@ -214,7 +244,7 @@ export class VeraChatService {
             } else {
                 // 2. Don't Know -> Escalate
                 console.log(`[VERA-CHAT] No KB answer for: "${text}". Escalating.`);
-                
+
                 // Notify Admin
                 if (this.adminGroupId) {
                     await this.bot.telegram.sendMessage(this.adminGroupId, `🚨 **Vera Precisa de Ajuda**\n\nUsuário: ${ctx.from.first_name}\nPergunta: "${text}"\n\n⚠️ Não encontrei na base de dados. Use /reply ou /learn para me ensinar.`);
@@ -276,5 +306,26 @@ export class VeraChatService {
         } catch (error) {
             console.error('[VERA-CHAT] Failed to send draft:', error);
         }
+    }
+
+    private checkRateLimit(userId: number): boolean {
+        const now = Date.now();
+        const window = 60000; // 1 minute
+        const limit = 15;
+
+        const timestamps = this.rateLimits.get(userId) || [];
+        // Filter out old timestamps
+        const recent = timestamps.filter(t => now - t < window);
+
+        if (recent.length >= limit) return false;
+
+        recent.push(now);
+        this.rateLimits.set(userId, recent);
+        return true;
+    }
+
+    private logAudit(userId: number, action: string) {
+        // Mock BigQuery Insert
+        console.log(`[AUDIT] User: ${userId} | Action: "${action}" | Time: ${new Date().toISOString()}`);
     }
 }

@@ -15,6 +15,12 @@ class MockVectorDB {
             .filter(l => l.metadata.reward > (filter.filter?.reward?.$gt || 0))
             .slice(0, filter.topK || 10);
     }
+
+    async deleteOld(timestampThreshold: number) {
+        const initialCount = this.logs.length;
+        this.logs = this.logs.filter(l => l.metadata.timestamp > timestampThreshold);
+        console.log(`[MEMORY] Cleaned up ${initialCount - this.logs.length} old memories.`);
+    }
 }
 
 export class MemoryStream {
@@ -69,5 +75,13 @@ export class MemoryStream {
     private async mockEmbed(text: string): Promise<number[]> {
         // Simulate a 1536-dim vector (OpenAI/Gemini standard)
         return new Array(1536).fill(0).map(() => Math.random());
+    }
+
+    /**
+     * Performance: Filter out old memories (> 30 days)
+     */
+    async cleanupOldMemories() {
+        const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+        await this.vectorDB.deleteOld(thirtyDaysAgo);
     }
 }

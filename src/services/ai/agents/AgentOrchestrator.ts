@@ -7,6 +7,7 @@ import { QuantumPredictorAgent } from './QuantumPredictorAgent';
 import { NarrativeWeaverAgent } from './NarrativeWeaverAgent';
 import { TenantConfig } from '../core/TenantConfigService';
 import { MemoryStream } from '../core/MemoryStream';
+import { QuantumTokenAgent } from './QuantumTokenAgent';
 
 export class AgentOrchestrator {
     private copywriters: Record<string, CopywriterAgent>;
@@ -17,6 +18,7 @@ export class AgentOrchestrator {
     private metaLearner: MetaLearnerAgent;
     private predictor: QuantumPredictorAgent;
     private narrator: NarrativeWeaverAgent;
+    private tokenAgent: QuantumTokenAgent;
 
     constructor() {
         this.copywriters = {
@@ -31,8 +33,33 @@ export class AgentOrchestrator {
         this.metaLearner = new MetaLearnerAgent(this.memory);
         this.predictor = new QuantumPredictorAgent();
         this.narrator = new NarrativeWeaverAgent();
+        this.tokenAgent = new QuantumTokenAgent();
     }
 
+    // ... (existing methods)
+
+    /**
+     * Daily Mission Loop
+     */
+    async runDailyMission() {
+        console.log('[VERA-CMO] 🌅 Starting Daily Mission...');
+
+        // 1. Get Narrative Brief (Storytelling)
+        const narrativeTopic = await this.narrator.getDailyNarrativeBrief();
+
+        // 2. Create Daily Content based on Narrative
+        const campaign = await this.createCampaign(narrativeTopic, 'TECH');
+
+        // 3. Reward the "Team" (Simulated User)
+        // In a real scenario, this would reward the user who approved or the agent itself
+        await this.tokenAgent.rewardUser('MOCK_USER_WALLET', 50, 'Daily Mission Complete');
+
+        // 4. Run Evolution Cycle (Meta-Learning)
+        await this.metaLearner.runEvolutionCycle();
+
+        // 5. Run Prediction Cycle (Time Awareness)
+        await this.predictor.runPredictionCycle();
+    }
     /**
      * Multi-Tenant Campaign Creation
      * Uses Tenant Config to drive tone and strategy
@@ -41,12 +68,9 @@ export class AgentOrchestrator {
         console.log(`[ORCHESTRATOR] 🌍 Starting Multi-Tenant Campaign for: ${tenant.name}`);
 
         // 0. SEO Research (Contextualized)
-        // In real app, we'd pass tenant keywords to SEO agent
         const seoInsights = await this.seo.execute({ topic: brief });
 
         // 1. Select Writer based on Tenant Tone
-        // Logic: Map tenant tone to closest agent or configure agent dynamically
-        // For MVP, if tone contains "Eco", use SUSTAINABILITY, else TECH
         const category = tenant.brandVoice.tone.includes('Eco') ? 'SUSTAINABILITY' : 'TECH';
         const writer = this.copywriters[category];
 
@@ -72,17 +96,22 @@ export class AgentOrchestrator {
         }
 
         // 4. Design Asset
-        const image = await this.designer.generateImage(brief, 'REALISTIC', tenant.name);
+        // Map tenant to brand enum
+        let brandEnum: 'QUANTUM' | 'VERUN' | 'PARTNER' = 'PARTNER';
+        if (tenant.name.toUpperCase().includes('QUANTUM')) brandEnum = 'QUANTUM';
+        if (tenant.name.toUpperCase().includes('VERUN')) brandEnum = 'VERUN';
+
+        const image = await this.designer.generateImage(brief, 'REALISTIC', brandEnum);
 
         // 5. Log to Tenant Memory
-        // TODO: Partition memory by tenant.id
         await this.memory.logInteraction({
             id: `camp_${tenant.id}_${Date.now()}`,
-            type: 'campaign_generated',
+            type: 'mission_success',
             text: draft,
             persona: category,
             channel: channel || 'OMNI',
-            metadata: { tenantId: tenant.id, brief }
+            metadata: { tenantId: tenant.id, brief },
+            company: tenant.name
         });
 
         return {
@@ -111,7 +140,7 @@ export class AgentOrchestrator {
         });
         console.log(`[VERA-CMO] Draft received. Sending to Critic...`);
 
-        // 3. Critic Loop (Simplified to 1 pass for now)
+        // 3. Critic Loop
         const review = await this.critic.execute({ draft });
         if (!review.approved && review.improvedDraft) {
             console.log(`[VERA-CMO] Critic requested changes. Applying humanization.`);
@@ -122,12 +151,10 @@ export class AgentOrchestrator {
         const brand = category === 'SUSTAINABILITY' ? 'VERUN' : 'QUANTUM';
         const image = await this.designer.generateImage(topic, 'REALISTIC', brand);
 
-        // 5. Log to Memory (Cognitive Core)
-        // We log the "Attempt". If approved later, we should log a "Success" reward.
-        // For now, we log the creation as a neutral/start event.
+        // 5. Log to Memory
         await this.memory.logInteraction({
             id: `campaign_${Date.now()}`,
-            type: 'mission_success', // Tentatively successful creation
+            type: 'mission_success',
             text: draft,
             persona: category,
             channel: 'OMNI',
@@ -140,30 +167,5 @@ export class AgentOrchestrator {
             seoReport: seoInsights,
             status: 'READY_FOR_APPROVAL'
         };
-    }
-
-    /**
-     * Daily Mission Loop
-     * - Runs every morning
-     * - Checks trends
-     * - Creates content
-     * - Runs Meta-Learning (Self-Evolution)
-     */
-    async runDailyMission() {
-        console.log('[VERA-CMO] 🌅 Starting Daily Mission...');
-
-        // 1. Get Narrative Brief (Storytelling)
-        const narrativeTopic = await this.narrator.getDailyNarrativeBrief();
-
-        // 2. Create Daily Content based on Narrative
-        await this.createCampaign(narrativeTopic, 'TECH');
-
-        // 3. Run Evolution Cycle (Meta-Learning)
-        // Vera analyzes yesterday's performance and adjusts herself
-        await this.metaLearner.runEvolutionCycle();
-
-        // 4. Run Prediction Cycle (Time Awareness)
-        // Vera looks into the future and creates proactive content
-        await this.predictor.runPredictionCycle();
     }
 }

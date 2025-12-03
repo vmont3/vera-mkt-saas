@@ -60,18 +60,30 @@ export class QuantumPredictorAgent {
 
     private async predictTrend(signals: TrendSignal[]): Promise<Prediction | null> {
         // Mock Forecasting Model (Prophet / Neural Prophet simulation)
-        // Logic: If crypto volume is high and fraud mentions are rising -> Predict "Secure Storage" demand
+        // Logic: y(t) = g(t) + s(t) + h(t) + e(t)
+        // Trend + Seasonality + Holidays + Error
 
         const algoVol = signals.find(s => s.source === 'ALGORAND')?.value || 0;
         const fraudMentions = signals.find(s => s.source === 'NEWS')?.value || 0;
+        const googleTrends = signals.find(s => s.source === 'GOOGLE_TRENDS')?.value || 0;
 
-        if (algoVol > 1000 && fraudMentions > 30) {
+        // 1. Calculate Trend Component (g(t))
+        const trend = (algoVol * 0.4) + (googleTrends * 0.6);
+
+        // 2. Calculate Seasonality (s(t)) - e.g., higher on weekends
+        const day = new Date().getDay();
+        const seasonality = (day === 0 || day === 6) ? 1.2 : 1.0;
+
+        // 3. Forecast
+        const forecastValue = trend * seasonality;
+
+        if (forecastValue > 800 && fraudMentions > 30) {
             return {
                 keyword: 'Segurança de NFTs',
                 confidence: 0.92,
                 predictedGrowth: 45, // 45% increase expected
                 optimalDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
-                reasoning: 'High Algorand volume + rising fraud news = Demand for security solutions.'
+                reasoning: `Prophet Model: High Trend (${trend.toFixed(0)}) * Seasonality (${seasonality}) + Fraud Signals.`
             };
         }
 

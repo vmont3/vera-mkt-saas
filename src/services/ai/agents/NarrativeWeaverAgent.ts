@@ -128,11 +128,24 @@ export class NarrativeWeaverAgent {
         // Fallback if index out of bounds
         const topic = contentList[index] || `Day ${day} Surprise Content`;
 
-        // Add Cliffhanger logic
-        if (index === 6 || day === 30) {
+        // Add Cliffhanger logic (Every 5th post)
+        if (day % 5 === 0) {
             return `${topic} [CLIFFHANGER_MODE: ON]`;
         }
 
         return topic;
+    }
+
+    /**
+     * Track engagement for a specific chapter/act
+     */
+    async trackChapterEngagement(day: number, engagementScore: number) {
+        if (!this.activeArc) return;
+
+        const act = this.determineAct(day);
+        apiLogger.info(`[NARRATIVE-WEAVER] 📊 Tracking Engagement for ${act} (Day ${day}): ${engagementScore}`);
+        
+        // In real app, store this in DB to adjust future arcs
+        // if (engagementScore < 50) this.adjustArc(act);
     }
 }

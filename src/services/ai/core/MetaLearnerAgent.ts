@@ -115,4 +115,19 @@ export class MetaLearnerAgent {
 
         // TODO: Call ConfigService.update()
     }
+
+    /**
+     * Decay rewards for old interactions
+     * Interações >30 dias perdem 10% peso/mês
+     */
+    async decayRewards() {
+        apiLogger.info('[META-LEARNER] 📉 Running Reward Decay...');
+
+        // In a real implementation, this would run a SQL update or Vector DB adjustment
+        // Example: UPDATE interactions SET reward = reward * 0.9 WHERE timestamp < NOW() - 30 days
+
+        // Mocking the decay process
+        const decayCount = Math.floor(Math.random() * 50);
+        console.log(`[META-LEARNER] Decayed rewards for ${decayCount} old interactions.`);
+    }
 }
