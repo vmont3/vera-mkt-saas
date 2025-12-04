@@ -24,7 +24,7 @@ import { GrowthController } from '../growth/GrowthController';
 router.get('/growth/opportunities', GrowthController.getOpportunities);
 
 // Social Media Automation (Vera Social)
-import { SocialController } from '../social/SocialController';
+import { SocialController } from '../../vera/services/social/SocialController';
 router.post('/social/accounts', SocialController.connectAccount);
 router.post('/social/posts', SocialController.createPost);
 router.post('/social/generate', SocialController.generateContent);

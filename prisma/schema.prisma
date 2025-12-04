@@ -808,6 +808,11 @@ model SocialAccount {
   
   partnerId     String
   partner       Partner  @relation(fields: [partnerId], references: [id])
+
+  status        String   @default("ACTIVE") // ACTIVE, DISCONNECTED
+  
+  posts         SocialPost[]
+  interactions  SocialInteraction[]
   
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -884,16 +889,7 @@ model ApprovalRequest {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
-  refreshToken  String?  // Encrypted
-  expiresAt     DateTime?
-  status        String   @default("ACTIVE") // ACTIVE, DISCONNECTED
-  
-  posts         SocialPost[]
-  interactions  SocialInteraction[]
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-}
+
 
 model SocialPost {
   id            String   @id @default(uuid())

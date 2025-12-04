@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { apiLimiter } from '../middleware/rateLimiter';
+import { adminLimiter } from '../middleware/rateLimiter';
 
 // Adapted for Express
 export class AdminController {

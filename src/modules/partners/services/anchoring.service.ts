@@ -11,10 +11,10 @@ export class AlgorandService {
 
         this.algodClient = new algosdk.Algodv2(token, server, port);
 
-        const [REDACTED] = process.env.ALGORAND_WALLET_MNEMONIC;
-        if ([REDACTED]) {
+        const mnemonic = process.env.ALGORAND_WALLET_MNEMONIC;
+        if (mnemonic) {
             try {
-                this.account = algosdk.[REDACTED]ToSecretKey([REDACTED]);
+                this.account = algosdk.mnemonicToSecretKey(mnemonic);
             } catch (e) {
                 console.error('Invalid Algorand Mnemonic:', e);
             }

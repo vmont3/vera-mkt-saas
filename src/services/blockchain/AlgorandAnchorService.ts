@@ -21,10 +21,10 @@ export class AlgorandAnchorService {
 
         this.algodClient = new algosdk.Algodv2(algodToken, algodServer, algodPort);
 
-        const [REDACTED] = process.env.ALGORAND_QC_ACCOUNT_MNEMONIC;
-        if ([REDACTED]) {
+        const mnemonic = process.env.ALGORAND_QC_ACCOUNT_MNEMONIC;
+        if (mnemonic) {
             try {
-                this.account = algosdk.[REDACTED]ToSecretKey([REDACTED]);
+                this.account = algosdk.mnemonicToSecretKey(mnemonic);
             } catch (e) {
                 console.error('❌ Invalid ALGORAND_QC_ACCOUNT_MNEMONIC:', e);
             }

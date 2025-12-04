@@ -1,8 +1,3 @@
-<<<<<<< HEAD
-export class SecretManagerService {
-    static async getSecret(name: string): Promise<string> {
-        return process.env[name] || '';
-=======
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 
 const client = new SecretManagerServiceClient();
@@ -36,6 +31,5 @@ export class SecretManagerService {
             console.error(`[SECRET-MANAGER] Failed to fetch secret ${name}:`, error.message);
             throw error;
         }
->>>>>>> 81b8531956a11ad0df3c8a481f0fae242197d980
     }
 }

@@ -17,3 +17,6 @@ export const rateLimiter = (limit: number, windowMs: number, endpointName: strin
     };
 };
 
+export const adminLimiter = rateLimiter(100, 15 * 60 * 1000, 'admin');
+export const nftLimiter = rateLimiter(50, 15 * 60 * 1000, 'nft');
+

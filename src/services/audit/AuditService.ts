@@ -59,6 +59,6 @@ export async function auditLog(
             labels: { action, userId }
         }, entry));
     } catch (error) {
-        console.error('[AUDIT FAIL]', error.message);
+        console.error('[AUDIT FAIL]', (error as Error).message);
     }
 }
