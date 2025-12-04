@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import { ImageGenerationService } from '../../image/ImageGenerationService';
+=======
+import { ImageGenerationService } from '../ImageGenerationService';
+>>>>>>> 81b8531956a11ad0df3c8a481f0fae242197d980
 
 interface ReelConfig {
     topic: string;
@@ -7,13 +11,17 @@ interface ReelConfig {
 
 export class ReelsFactory {
     private designer: ImageGenerationService;
+<<<<<<< HEAD
     private cache: Map<string, any> = new Map(); // Mock Redis
+=======
+>>>>>>> 81b8531956a11ad0df3c8a481f0fae242197d980
 
     constructor() {
         this.designer = new ImageGenerationService();
     }
 
     async produceReel(config: ReelConfig) {
+<<<<<<< HEAD
         // PERFORMANCE: Check Cache
         const cacheKey = `reel:${config.topic}:${config.persona}`;
         if (this.cache.has(cacheKey)) {
@@ -26,6 +34,9 @@ export class ReelsFactory {
         const sanitizedTopic = this.sanitizeInput(config.topic);
 
         console.log(`[REELS] Starting production for: ${sanitizedTopic} (${config.persona})`);
+=======
+        console.log(`[REELS] Starting production for: ${config.topic} (${config.persona})`);
+>>>>>>> 81b8531956a11ad0df3c8a481f0fae242197d980
 
         // 1. Generate Viral Script
         const script = this.generateViralScript(config);
@@ -41,18 +52,25 @@ export class ReelsFactory {
         // const voice = await elevenLabs.synthesize(script.voiceover);
         // const video = await remotion.render(...)
 
+<<<<<<< HEAD
         const result = {
+=======
+        return {
+>>>>>>> 81b8531956a11ad0df3c8a481f0fae242197d980
             script,
             visual: image,
             status: 'DRAFT_READY',
             estimatedViralScore: 85 // Mocked score
         };
+<<<<<<< HEAD
 
         // PERFORMANCE: Set Cache (TTL 1 hour)
         this.cache.set(cacheKey, result);
         setTimeout(() => this.cache.delete(cacheKey), 3600000);
 
         return result;
+=======
+>>>>>>> 81b8531956a11ad0df3c8a481f0fae242197d980
     }
 
     private generateViralScript(config: ReelConfig) {
@@ -89,6 +107,7 @@ export class ReelsFactory {
         if (config.persona === 'INDUSTRIAL') return `${base}, industrial component on assembly line, blue neon lights, technical diagram overlay`;
         return `${base}, futuristic microchip, glowing circuits, cyberpunk atmosphere`;
     }
+<<<<<<< HEAD
 
     private validateInput(input: string) {
         if (input.length > 100) {
@@ -104,4 +123,6 @@ export class ReelsFactory {
         // Remove special characters to prevent injection
         return input.replace(/[^a-zA-Z0-9\s\u00C0-\u00FF]/g, '');
     }
+=======
+>>>>>>> 81b8531956a11ad0df3c8a481f0fae242197d980
 }

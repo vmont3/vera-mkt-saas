@@ -1,5 +1,5 @@
 import { Telegraf, Context } from 'telegraf';
-import { AgentOrchestrator } from './agents/AgentOrchestrator';
+import { AgentOrchestrator } from '../../agents/ai/AgentOrchestrator';
 import { SocialMediaService } from '../social/SocialMediaService';
 import { KnowledgeBaseService } from './KnowledgeBaseService';
 import { AnalyticsService } from '../analytics/AnalyticsService';

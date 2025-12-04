@@ -1,0 +1,942 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  govbrSub     String?  @unique
+  password     String
+  kycStatus    String   @default("pending")
+  createdAt    DateTime @default(now())
+  
+  // Relations
+  wallet       Wallet?
+  encoderQueue EncoderQueue[]
+  incidentsReported Incident[] @relation("IncidentReporter")
+  incidentsOwned    Incident[] @relation("IncidentOwner")
+  incidentAudits    IncidentAudit[]
+  
+  // Ownership Relations
+  assetsOwned       PartnerAsset[] @relation("AssetOwner")
+  transfersSent     OwnershipTransfer[] @relation("TransferFrom")
+  transfersReceived OwnershipTransfer[] @relation("TransferTo")
+  
+  // Audit Relations
+  auditRequestsMade     AuthorityAuditRequest[] @relation("AuditRequester")
+  auditRequestsReceived AuthorityAuditRequest[] @relation("AuditOwner")
+  
+  // Financial
+  referralCode          String?  @unique
+  referredBy            String?
+  orders                Order[]
+  commissions           Commission[]
+  persona               UserPersona?
+}
+
+model Subject {
+  id             String   @id @default(uuid())
+  type           String
+  ownerId        String
+  publicMetadata Json?
+  privacyPolicy  Json?
+  createdAt      DateTime @default(now())
+  
+  // Relations
+  ntag424Tags    NTAG424Tag[]
+  encoderQueue   EncoderQueue[]
+  incidents      Incident[]
+}
+
+model Tag {
+  id            String   @id
+  chipUid       String
+  hTrunc        String
+  integrityCode String
+  subjectId     String?
+  status        String    @default("pending")
+  createdAt     DateTime  @default(now())
+}
+
+model QrToken {
+  id          String   @id @default(uuid())
+  subjectId   String
+  token       String   @unique
+  expiresAt   DateTime
+  status      String   @default("active")
+}
+
+model NFCTag {
+  id                  String   @id @default(uuid())
+  uid                 String   @unique
+  hTrunc              String
+  integrityCode       String
+  counter             Int      @default(0)
+  verificationCounter Int      @default(0)
+  linkedSubjectId     String?
+  linkedAssetId       String?
+  anchorTxId          String?
+  status              String   @default("active")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model Wallet {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id])
+  creditsBalance Float    @default(0)
+  moneyPending   Float    @default(0)
+  moneyAvailable Float    @default(0)
+}
+
+model OfflineEvent {
+  id          String    @id @default(cuid())
+  sourceId    String?
+  type        String
+  payload     Json
+  status      String    @default("PENDING")
+  error       String?
+  createdAt   DateTime  @default(now())
+  processedAt DateTime?
+}
+
+model LifecycleEvent {
+  id             String   @id @default(uuid())
+  subjectId      String
+  eventType      String
+  merkleLeafHash String
+  anchorTxid     String?
+  createdAt      DateTime @default(now())
+}
+
+model ContractTemplate {
+  id           String   @id @default(uuid())
+  segment      String
+  version      String
+  templateText String
+  createdAt    DateTime @default(now())
+}
+
+model Contract {
+  id         String   @id @default(uuid())
+  templateId String
+  filledData Json
+  anchorTxid String?
+  createdAt  DateTime @default(now())
+}
+
+model Delegation {
+  id          String   @id @default(uuid())
+  ownerId     String
+  delegateId  String
+  scope       String
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+}
+
+
+
+// --- Universal Partner Module Models ---
+
+model Partner {
+  id             String            @id @default(uuid())
+  name           String
+  slug           String            @unique // e.g., "e-recycle"
+  segment        String            // "recycle", "benefits", etc.
+  type           String            @default("MANUFACTURER") // "MANUFACTURER", "RETAILER", "INSURER"
+  status         String            @default("ACTIVE") // "ACTIVE", "SUSPENDED"
+  
+  webhookUrl     String?           // For notifications
+  maxAssets      Int?              // Quota
+  maxDailyRegistrations Int?       // Quota
+  
+  isActive       Boolean           @default(true)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  
+  config         PartnerConfig?
+  apiKeys        PartnerApiKey[]
+  assets         PartnerAsset[]
+  events         PartnerEvent[]
+  batches        PartnerBatch[]
+  signatures     PartnerSignature[]
+  webhooks       PartnerWebhook[]
+  audits         PartnerAudit[]
+  commissions    Commission[]
+  
+  // Hive Relations
+  agents         AgentPersona[]
+  contentTasks   ContentTask[]
+  socialAccounts SocialAccount[]
+}
+
+model PartnerApiKey {
+  id                 String    @id @default(cuid())
+  partnerId          String
+  partner            Partner   @relation(fields: [partnerId], references: [id])
+  name               String
+  apiKeyHash         String    @unique
+  scopes             String[]  // e.g. ["asset.read", "asset.write"]
+  active             Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  lastUsedAt         DateTime?
+  expiresAt          DateTime?
+}
+
+model PartnerConfig {
+  id             String   @id @default(uuid())
+  partnerId      String   @unique
+  partner        Partner  @relation(fields: [partnerId], references: [id])
+  
+  // JSON configuration for dynamic behavior
+  // Includes: assetSchema, lifecycle, partnerRules, pricingRules, anchoringRules, signatureRules, webhookRules, riskRules
+  config         Json
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model PartnerAsset {
+  id             String   @id @default(uuid())
+  partnerId      String
+  partner        Partner  @relation(fields: [partnerId], references: [id])
+  
+  externalId     String?  // ID in the partner's system
+  publicId       String?  @unique // Verun-ready public ID (safe to expose)
+  type           String   // "electronic", "glass", "pet", etc.
+  status         String   // Dynamic based on lifecycle, e.g., "discardStarted", "anchored"
+  
+  metadata       Json     // Flexible data: weight, serial, purity, photos, etc.
+  
+  ownerId        String?  // User ID if applicable
+  owner          User?    @relation("AssetOwner", fields: [ownerId], references: [id])
+  
+  batchId        String?
+  batch          PartnerBatch? @relation(fields: [batchId], references: [id])
+  
+  // Category & Template (Legacy)
+  categoryId     String?
+  category       AssetCategory? @relation(fields: [categoryId], references: [id])
+  
+  templateId     String?
+  template       AssetTemplate? @relation(fields: [templateId], references: [id])
+
+  // New Category Template System
+  categorySlug   String?
+  categoryTemplate CategoryTemplate? @relation(fields: [categorySlug], references: [slug])
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  // Relations
+  events         PartnerEvent[]
+  signatures     PartnerSignature[]
+  ntag424Tags    NTAG424Tag[]
+  encoderQueue   EncoderQueue[]
+  incidents      Incident[]
+  ownershipTransfers OwnershipTransfer[]
+  auditRequests  AuthorityAuditRequest[]
+}
+
+model CategoryTemplate {
+  id            String   @id @default(cuid())
+  slug          String   @unique    // "bike", "dog", "luxury-watch", "jersey"
+  displayName   String             // "Bicicleta", "Cachorro", "Relógio de Luxo"
+  iconUrl       String?            // optional, for UI
+  description   String?
+  fields        Json               // dynamic field schema definition
+  uiSchema      Json               // UI metadata (ordering, grouping, labels)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // relations:
+  assets        PartnerAsset[]
+}
+
+model AssetCategory {
+  id             String   @id @default(cuid())
+  slug           String   @unique // "bike", "car"
+  name           String
+  description    String?
+  active         Boolean  @default(true)
+  
+  templates      AssetTemplate[]
+  assets         PartnerAsset[]
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model AssetTemplate {
+  id             String   @id @default(cuid())
+  
+  categoryId     String
+  category       AssetCategory @relation(fields: [categoryId], references: [id])
+  
+  version        Int
+  schema         Json     // The JSON schema for validation
+  isDefault      Boolean  @default(false)
+  
+  assets         PartnerAsset[]
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@unique([categoryId, version])
+}
+
+model OwnershipTransfer {
+  id             String   @id @default(uuid())
+  
+  assetId        String
+  asset          PartnerAsset @relation(fields: [assetId], references: [id])
+  
+  fromOwnerId    String
+  fromOwner      User     @relation("TransferFrom", fields: [fromOwnerId], references: [id])
+  
+  toOwnerId      String
+  toOwner        User     @relation("TransferTo", fields: [toOwnerId], references: [id])
+  
+  status         String   @default("PENDING") // PENDING, ACCEPTED, REJECTED, CANCELLED
+  
+  txId           String?  // Algorand Transaction ID
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@index([assetId])
+  @@index([fromOwnerId])
+  @@index([toOwnerId])
+  @@index([status])
+}
+
+model AuthorityAuditRequest {
+  id             String   @id @default(cuid())
+  
+  assetId        String
+  asset          PartnerAsset @relation(fields: [assetId], references: [id])
+  
+  requesterId    String
+  requester      User     @relation("AuditRequester", fields: [requesterId], references: [id])
+  
+  ownerId        String
+  owner          User     @relation("AuditOwner", fields: [ownerId], references: [id])
+  
+  status         String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  reason         String
+  
+  auditToken     String?  @unique
+  validUntil     DateTime?
+  
+  createdAt      DateTime @default(now())
+  approvedAt     DateTime?
+  rejectedAt     DateTime?
+  
+  @@index([assetId])
+  @@index([requesterId])
+  @@index([ownerId])
+  @@index([auditToken])
+}
+
+model PartnerEvent {
+  id             String   @id @default(uuid())
+  partnerId      String
+  partner        Partner  @relation(fields: [partnerId], references: [id])
+  
+  eventType      String   // "onAssetRegistered", "onOwnershipTransferred", etc.
+  payload        Json
+  
+  assetId        String?
+  asset          PartnerAsset? @relation(fields: [assetId], references: [id])
+  
+  processed      Boolean  @default(false)
+  processedAt    DateTime?
+  
+  createdAt      DateTime @default(now())
+}
+
+model PartnerBatch {
+  id             String   @id @default(uuid())
+  partnerId      String
+  partner        Partner  @relation(fields: [partnerId], references: [id])
+  
+  type           String   @default("GENERAL") // "DISPOSAL", "ANCHORING"
+  status         String   // "OPEN", "CLOSED", "ANCHORED"
+  itemsCount     Int      @default(0)
+  
+  anchoredHash   String?
+  blockchainTxId String?
+  
+  assets         PartnerAsset[]
+  
+  createdAt      DateTime @default(now())
+  closedAt       DateTime?
+  anchoredAt     DateTime?
+}
+
+model PartnerSignature {
+  id             String   @id @default(uuid())
+  partnerId      String
+  partner        Partner  @relation(fields: [partnerId], references: [id])
+  
+  assetId        String
+  asset          PartnerAsset @relation(fields: [assetId], references: [id])
+  
+  signerId       String?  // User ID or External ID
+  type           String   // "terminal", "app", "govbr"
+  status         String   // "requested", "pending", "completed", "declined"
+  
+  signatureData  Json?    // Raw signature data, proof, etc.
+  
+  requestedAt    DateTime @default(now())
+  signedAt       DateTime?
+}
+
+model PartnerWebhook {
+  id             String   @id @default(uuid())
+  partnerId      String
+  partner        Partner  @relation(fields: [partnerId], references: [id])
+  
+  url            String
+  secret         String?
+  eventTypes     Json     // Array of strings
+  isActive       Boolean  @default(true)
+  
+  createdAt      DateTime @default(now())
+}
+
+model PartnerAudit {
+  id             String   @id @default(uuid())
+  partnerId      String
+  partner        Partner  @relation(fields: [partnerId], references: [id])
+  
+  action         String
+  actor          String?
+  details        Json?
+  
+  createdAt      DateTime @default(now())
+}
+
+// ============= NTAG 424 DNA CORE MODELS =============
+
+model NTAG424Tag {
+  id                String   @id @default(uuid())
+  uid               String   @unique
+  
+  linkedSubjectId   String?
+  linkedSubject     Subject? @relation(fields: [linkedSubjectId], references: [id])
+  
+  partnerAssetId    String?
+  partnerAsset      PartnerAsset? @relation(fields: [partnerAssetId], references: [id])
+  
+  // Falcon-512 Post-Quantum Cryptography
+  falconMasterHash  String?  // SHA-256(Falcon signature) - full hash stored here
+  falconPublicKey   String?  // Hex-encoded system-wide public key reference
+  falconSignature   String?  // Hex-encoded Falcon-512 signature (for audit)
+  
+  masterHashVaultKey String
+  hashTruncated     String
+  truncatedBits     Int      @default(128)
+  
+  configId          String
+  config            NTAG424Config @relation(fields: [configId], references: [id])
+  
+  status            String   @default("PENDING_ENCODING")
+  lastAcceptedCtr   Int      @default(0)
+  
+  suspiciousCount   Int      @default(0)
+  lastSuspiciousAt  DateTime?
+  
+  encodedAt         DateTime?
+  encodedBy         String?
+  encoderStationId  String?
+  encoderStation    EncoderStation? @relation(fields: [encoderStationId], references: [id])
+  
+  verifications     TagVerificationLog[]
+  incidents         Incident[]
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model NTAG424Config {
+  id                String   @id @default(uuid())
+  
+  keyAppSecretArn   String
+  keySdmSecretArn   String
+  keyNdefSecretArn  String?
+  keyProtSecretArn  String?
+  keyAuthSecretArn  String?
+  
+  randomIdEnabled   Boolean  @default(true)
+  lrpModeEnabled    Boolean  @default(true)
+  
+  sdmUrlTemplate    String
+  sdmEncOffset      Int
+  sdmEncLength      Int
+  sdmReadCtrOffset  Int
+  sdmMacOffset      Int
+  sdmMacInputOffset Int
+  
+  ndefFileSize      Int      @default(256)
+  protFileSize      Int      @default(128)
+  
+  configVersion     String   @default("1.0")
+  description       String?
+  
+  tags              NTAG424Tag[]
+  encoderQueue      EncoderQueue[]
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model EncoderQueue {
+  id                String   @id @default(uuid())
+  
+  configId          String
+  config            NTAG424Config @relation(fields: [configId], references: [id])
+  
+  subjectId         String?
+  subject           Subject? @relation(fields: [subjectId], references: [id])
+  
+  partnerAssetId    String?
+  partnerAsset      PartnerAsset? @relation(fields: [partnerAssetId], references: [id])
+  
+  masterHashVaultKey String
+  hashTruncated     String
+  
+  sdmPayload        Json
+  
+  stationId         String?
+  station           EncoderStation? @relation(fields: [stationId], references: [id])
+  
+  operatorId        String?
+  operator          User?    @relation(fields: [operatorId], references: [id])
+  
+  status            String   @default("PENDING")
+  priority          Int      @default(0)
+  
+  tagId             String?  @unique
+  encodedUid        String?
+  errorMessage      String?
+  attempts          Int      @default(0)
+  technicalLog      Json?
+  
+  createdAt         DateTime @default(now())
+  startedAt         DateTime?
+  completedAt       DateTime?
+  
+  @@index([status, priority])
+}
+
+model EncoderStation {
+  id                String   @id @default(uuid())
+  
+  name              String
+  type              String   @default("ACR122U")
+  serialNumber      String?  @unique
+  
+  location          String?
+  
+  isOnline          Boolean  @default(true)
+  lastHeartbeat     DateTime?
+  
+  offlineDbPath     String?
+  
+  tags              NTAG424Tag[]
+  queueItems        EncoderQueue[]
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model TagVerificationLog {
+  id                String   @id @default(uuid())
+  
+  tagId             String
+  tag               NTAG424Tag @relation(fields: [tagId], references: [id])
+  
+  sdmReadCtr        Int
+  uidFromTag        String
+  hashTruncated     String
+  
+  status            String
+  
+  macProvided       String
+  macCalculated     String
+  macValid          Boolean
+  
+  deviceId          String?
+  appId             String?
+  ipAddress         String?
+  geoLocation       Json?
+  userAgent         String?
+  
+  isOfflineSync     Boolean  @default(false)
+  offlineTimestamp  DateTime?
+  
+  createdAt         DateTime @default(now())
+  
+  @@index([tagId, sdmReadCtr])
+  @@index([status])
+}
+
+model Incident {
+  id                String   @id @default(uuid())
+  
+  tagId             String?
+  tag               NTAG424Tag? @relation(fields: [tagId], references: [id])
+  
+  subjectId         String?
+  subject           Subject? @relation(fields: [subjectId], references: [id])
+  
+  partnerAssetId    String?
+  partnerAsset      PartnerAsset? @relation(fields: [partnerAssetId], references: [id])
+  
+  type              String
+  description       String
+  
+  reportedBy        String?
+  reporter          User?    @relation("IncidentReporter", fields: [reportedBy], references: [id])
+  
+  originType        String
+  
+  status            String   @default("PENDING_APPROVAL")
+  
+  ownerId           String?
+  owner             User?    @relation("IncidentOwner", fields: [ownerId], references: [id])
+  
+  reviewedAt        DateTime?
+  reviewNotes       String?
+  
+  auditRecords      IncidentAudit[]
+  
+  attachments       Json?
+  
+  incidentDate      DateTime
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@index([status])
+  @@index([type])
+}
+
+model IncidentAudit {
+  id                String   @id @default(uuid())
+  
+  incidentId        String
+  incident          Incident @relation(fields: [incidentId], references: [id])
+  
+  authorityOrg      String
+  authorityId       String
+  officialProtocol  String?
+  
+  externalRefs      Json?
+  
+  submittedBy       String?
+  submitter         User?    @relation(fields: [submittedBy], references: [id])
+  
+  notes             String?
+  attachments       Json?
+  
+  submittedAt       DateTime @default(now())
+  ipAddress         String?
+  
+  @@index([incidentId])
+}
+
+model BlockchainAnchor {
+  id        String   @id @default(uuid())
+  assetId   String
+  txId      String
+  network   String
+  falconHash String
+  createdAt DateTime @default(now())
+}
+
+model PendingAnchor {
+  id          String   @id @default(cuid())
+  assetId     String
+  falconHash  String
+  attempts    Int      @default(0)
+  lastError   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  timestamp     DateTime @default(now())
+  eventType     String
+  severity      String
+  actorType     String
+  actorId       String?
+  assetId       String?
+  payload       Json?
+  signature     String
+  hashChainPrev String
+  hashChainThis String
+}
+
+// ============= WEBHOOKS MODULE =============
+
+model WebhookSubscription {
+  id             String   @id @default(cuid())
+  partnerId      String?  // Nullable for global subscriptions (e.g., Verun)
+  name           String
+  url            String
+  secret         String   // HMAC secret
+  eventTypes     Json     // Array of strings: ["asset.created", "incident.opened"]
+  active         Boolean  @default(true)
+  
+  deliveries     WebhookDelivery[]
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model WebhookDelivery {
+  id             String   @id @default(cuid())
+  
+  subscriptionId String
+  subscription   WebhookSubscription @relation(fields: [subscriptionId], references: [id])
+  
+  eventType      String
+  payload        Json
+  
+  status         String   @default("PENDING") // PENDING, DELIVERED, FAILED
+  attempts       Int      @default(0)
+  lastError      String?
+  nextAttemptAt  DateTime?
+  
+  createdAt      DateTime @default(now())
+  deliveredAt    DateTime?
+  
+  @@index([status, nextAttemptAt])
+}
+
+// ============= FINANCIAL MODULE =============
+
+model Order {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  
+  amount        Float
+  currency      String   @default("BRL")
+  status        String   // PENDING, PAID, FAILED
+  
+  items         OrderItem[]
+  commissions   Commission[]
+  
+  gatewayId     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model OrderItem {
+  id            String   @id @default(uuid())
+  orderId       String
+  order         Order    @relation(fields: [orderId], references: [id])
+  
+  description   String
+  quantity      Int
+  unitPrice     Float
+  totalPrice    Float
+  
+  type          String   // "CREDIT", "PRODUCT", "SERVICE"
+  referenceId   String?
+}
+
+model Commission {
+  id            String   @id @default(uuid())
+  
+  orderId       String
+  order         Order    @relation(fields: [orderId], references: [id])
+  
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id])
+  
+  partnerId     String?
+  partner       Partner? @relation(fields: [partnerId], references: [id])
+  
+  type          String   // "REFERRAL", "MANUFACTURER", "RETAILER"
+  
+  amount        Float
+  status        String   // PENDING, AVAILABLE, WITHDRAWN, CANCELLED
+  
+  availableAt   DateTime 
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============= GROWTH ENGINE MODULE =============
+
+model UserPersona {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id])
+  
+  isParent      Boolean  @default(false) // Has "Child" assets
+  isPetOwner    Boolean  @default(false) // Has "Pet" assets
+  isVehicleOwner Boolean @default(false) // Has "Vehicle" assets
+  isBusiness    Boolean  @default(false) // Has > 10 assets or CNPJ
+  
+  lastAnalyzed  DateTime @default(now())
+  opportunities Json?    // Array of AI prompts for Vera
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============= SOCIAL MEDIA AUTOMATION MODULE =============
+
+model SocialAccount {
+  id            String   @id @default(uuid())
+  platform      String   // "INSTAGRAM", "WHATSAPP", "LINKEDIN", "TWITTER"
+  username      String
+  accessToken   String   // Encrypted
+  refreshToken  String?  // Encrypted
+  expiresAt     DateTime?
+  
+  partnerId     String
+  partner       Partner  @relation(fields: [partnerId], references: [id])
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============= HIVE ARCHITECTURE (VERA 5.0) =============
+
+model AgentPersona {
+  id            String   @id @default(uuid())
+  name          String
+  role          String   // "SPY", "MANAGER", "CREATOR", "DESIGNER", "VERIFIER", "SUPERVISOR"
+  segment       String   // e.g., "Tech", "Beauty", "Finance"
+  platform      String?  // "INSTAGRAM", "LINKEDIN", etc. (Null for Manager/Supervisor)
+  tone          String   // e.g., "Professional", "Witty"
+  
+  xp            Int      @default(0)
+  level         Int      @default(1)
+  
+  partnerId     String
+  partner       Partner  @relation(fields: [partnerId], references: [id])
+  
+  isActive      Boolean  @default(true)
+  config        Json?    // Specific agent config (e.g., Spy keywords)
+  
+  tasksCreated  ContentTask[] @relation("TaskCreator")
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model ContentTask {
+  id            String   @id @default(uuid())
+  
+  title         String
+  description   String   // The "Command" or "Idea"
+  
+  segment       String
+  platform      String
+  
+  status        String   @default("IDEA") // IDEA, DRAFT, VERIFIED, PENDING_APPROVAL, APPROVED, PUBLISHED, REJECTED
+  
+  copy          String?  @db.Text
+  imageUrl      String?
+  
+  metrics       Json?    // Predicted metrics from Spy
+  feedback      String?  // From Verifier or Admin
+  
+  creatorId     String?
+  creator       AgentPersona? @relation("TaskCreator", fields: [creatorId], references: [id])
+  
+  approval      ApprovalRequest?
+  
+  partnerId     String
+  partner       Partner  @relation(fields: [partnerId], references: [id])
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model ApprovalRequest {
+  id            String   @id @default(uuid())
+  
+  taskId        String   @unique
+  task          ContentTask @relation(fields: [taskId], references: [id])
+  
+  telegramMsgId String?  // ID of the poll/message in Telegram
+  
+  votesFor      Int      @default(0)
+  votesAgainst  Int      @default(0)
+  
+  status        String   @default("OPEN") // OPEN, APPROVED, REJECTED, EXPIRED
+  deadline      DateTime
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+  refreshToken  String?  // Encrypted
+  expiresAt     DateTime?
+  status        String   @default("ACTIVE") // ACTIVE, DISCONNECTED
+  
+  posts         SocialPost[]
+  interactions  SocialInteraction[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model SocialPost {
+  id            String   @id @default(uuid())
+  accountId     String
+  account       SocialAccount @relation(fields: [accountId], references: [id])
+  
+  content       String   // Text content
+  mediaUrls     Json?    // Array of image/video URLs
+  
+  status        String   @default("DRAFT") // DRAFT, SCHEDULED, PUBLISHED, FAILED
+  scheduledFor  DateTime?
+  publishedAt   DateTime?
+  
+  platformPostId String? // ID returned by the platform
+  
+  metrics       Json?    // { likes: 10, shares: 2 }
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model SocialInteraction {
+  id            String   @id @default(uuid())
+  accountId     String
+  account       SocialAccount @relation(fields: [accountId], references: [id])
+  
+  type          String   // "COMMENT", "DM", "MENTION"
+  externalId    String   // ID on the platform
+  senderHandle  String
+  content       String
+  
+  sentiment     String?  // "POSITIVE", "NEGATIVE", "NEUTRAL" (Analyzed by AI)
+  
+  status        String   @default("PENDING") // PENDING, REPLIED, IGNORED
+  replyContent  String?
+  repliedAt     DateTime?
+  
+  createdAt     DateTime @default(now())
+}
+
+model Metric {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  value     Int      @default(0)
+  updatedAt DateTime @updatedAt
+}

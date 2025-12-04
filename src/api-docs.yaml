@@ -1,0 +1,99 @@
+openapi: 3.0.0
+info:
+  title: Vera 5.0 Universal API
+  description: Multi-tenant AI Agent Platform API
+  version: 1.0.0
+servers:
+  - url: https://api.vera.ai/v1
+    description: Production Server
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+security:
+  - ApiKeyAuth: []
+paths:
+  /tenants:
+    post:
+      summary: Create a new tenant
+      security:
+        - ApiKeyAuth: [] # Admin only
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                plan:
+                  type: string
+                  enum: [free, pro, enterprise]
+      responses:
+        '201':
+          description: Tenant created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  apiKey:
+                    type: string
+  /campaigns:
+    post:
+      summary: Create a new campaign
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                prompt:
+                  type: string
+      responses:
+        '201':
+          description: Campaign created
+  /metrics:
+    get:
+      summary: Get tenant usage metrics
+      responses:
+        '200':
+          description: Metrics data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  apiCalls:
+                    type: integer
+                  storageUsed:
+                    type: string
+                  estimatedCost:
+                    type: string
+  /webhooks:
+    post:
+      summary: Register a webhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url:
+                  type: string
+                events:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Webhook registered
